@@ -66,8 +66,8 @@ if __name__ == "__main__":
             oh_actions = to_categorical(elite_actions, nb_classes=n_actions)
             m.fit(elite_states, oh_actions, verbose=0)
             print("%d: mean reward = %.5f\tthreshold = %.1f" % (idx, np.mean(b_rewards), threshold))
+            m.save_weights("t0-iter=%03d-thr=%.2f.hdf5" % (idx, threshold))
         else:
             print("%d: no improvement" % idx)
 
-        m.save_weights("t0-iter=%03d-thr=%.2f.hdf5" % (idx, threshold))
     pass
