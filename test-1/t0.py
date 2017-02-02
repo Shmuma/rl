@@ -1,6 +1,7 @@
 # Multi-layer perceptron inspired by this: https://gym.openai.com/evaluations/eval_P4KyYPwIQdSg6EqvHgYjiw
 # https://gist.githubusercontent.com/anonymous/d829ec2f8bda088ac897aa2055dcd3a8/raw/d3fcdfdcc9038bf24385589e94939dcd3c198349/crossentropy_method.py
 import gym
+from gym import wrappers
 import numpy as np
 
 from keras.models import Sequential
@@ -8,7 +9,7 @@ from keras.layers import Dense, Activation
 from keras.utils.np_utils import to_categorical
 
 
-BATCH_SIZE = 500
+BATCH_SIZE = 32
 
 
 def make_model(state_shape, actions_n):
@@ -43,6 +44,7 @@ def generate_session(env, model, n_actions, t_max=1000):
 
 if __name__ == "__main__":
     env = gym.make("CartPole-v0")
+#    env = wrappers.Monitor(env, "test-1")
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
