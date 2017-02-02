@@ -7,9 +7,10 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 from keras.utils.np_utils import to_categorical
+from keras.optimizers import Adagrad
 
 
-BATCH_SIZE = 32
+BATCH_SIZE = 500
 
 
 def make_model(state_shape, actions_n):
@@ -44,13 +45,13 @@ def generate_session(env, model, n_actions, t_max=1000):
 
 if __name__ == "__main__":
     env = gym.make("CartPole-v0")
-#    env = wrappers.Monitor(env, "test-1")
+    env = wrappers.Monitor(env, "test-1")
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
     m = make_model(state_shape, n_actions)
     m.summary()
-    m.compile(optimizer='adagrad', loss='categorical_crossentropy')
+    m.compile(optimizer=Adagrad(lr=0.001), loss='categorical_crossentropy')
 
     for idx in range(100):
         batch = [generate_session(env, m, n_actions) for _ in range(BATCH_SIZE)]
