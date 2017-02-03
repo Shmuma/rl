@@ -24,7 +24,7 @@ def make_model(state_shape, actions_n):
     return m
 
 
-def generate_session(env, model, n_actions):
+def generate_session(env, model, n_actions, limit=None):
     states = []
     actions = []
     s = env.reset()
@@ -41,6 +41,8 @@ def generate_session(env, model, n_actions):
         s = new_s
         if done:
             break
+        if limit is not None and len(actions) >= limit:
+            break
 
     return states, actions, total_reward
 
@@ -50,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--read", help="Read model weight from file, default=None")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("-e", "--env", default="CartPole-1", help="Environment to test on, default=CartPole-v1")
+    parser.add_argument("-l", "--limit", default=500, type=int, help="Limit of steps per episode")
     parser.add_argument("--iters", type=int, default=100, help="How many learning iterations to do, default=100")
     args = parser.parse_args()
 
@@ -67,7 +70,7 @@ if __name__ == "__main__":
         m.load_weights(args.read)
 
     for idx in range(args.iters):
-        batch = [generate_session(env, m, n_actions) for _ in range(BATCH_SIZE)]
+        batch = [generate_session(env, m, n_actions, limit=args.limit) for _ in range(BATCH_SIZE)]
         b_states, b_actions, b_rewards = map(np.array, zip(*batch))
 
         threshold = np.percentile(b_rewards, 50)
