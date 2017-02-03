@@ -7,6 +7,8 @@ setup(
     license='GPL-v3',
     version='0.1',
     description="Tool to submit solution to OpenAI Gym",
-    instal_requires=['gym'],
+    instal_requires=[
+        'gym',
+    ],
     scripts=["gym-submit.py"],
 )
