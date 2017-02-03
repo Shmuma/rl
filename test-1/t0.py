@@ -18,7 +18,7 @@ BATCH_SIZE = 32
 def make_model(state_shape, actions_n):
     m = Sequential()
     m.add(Dense(40, input_shape=state_shape, activation='relu'))
-    m.add(Dense(40))
+    m.add(Dense(40, activation='relu'))
     m.add(Dense(actions_n))
     m.add(Activation('softmax'))
     return m
