@@ -1,6 +1,8 @@
+#!/usr/bin/env python
 # Multi-layer perceptron inspired by this: https://gym.openai.com/evaluations/eval_P4KyYPwIQdSg6EqvHgYjiw
 # https://gist.githubusercontent.com/anonymous/d829ec2f8bda088ac897aa2055dcd3a8/raw/d3fcdfdcc9038bf24385589e94939dcd3c198349/crossentropy_method.py
 import gym
+import argparse
 from gym import wrappers
 import numpy as np
 
@@ -10,7 +12,7 @@ from keras.utils.np_utils import to_categorical
 from keras.optimizers import Adagrad
 
 
-BATCH_SIZE = 500
+BATCH_SIZE = 32
 
 
 def make_model(state_shape, actions_n):
@@ -22,7 +24,7 @@ def make_model(state_shape, actions_n):
     return m
 
 
-def generate_session(env, model, n_actions, t_max=1000):
+def generate_session(env, model, n_actions, t_max=200):
     states = []
     actions = []
     s = env.reset()
@@ -44,16 +46,26 @@ def generate_session(env, model, n_actions, t_max=1000):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--read", help="Read model weight from file, default=None")
+    parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
+    parser.add_argument("--iters", type=int, default=100, help="How many learning iterations to do, default=100")
+    args = parser.parse_args()
+
     env = gym.make("CartPole-v0")
-    env = wrappers.Monitor(env, "test-1")
+    if args.monitor:
+        env = wrappers.Monitor(env, args.monitor)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
     m = make_model(state_shape, n_actions)
     m.summary()
-    m.compile(optimizer=Adagrad(lr=0.001), loss='categorical_crossentropy')
+    m.compile(optimizer=Adagrad(lr=0.01), loss='categorical_crossentropy')
 
-    for idx in range(100):
+    if args.read:
+        m.load_weights(args.read)
+
+    for idx in range(args.iters):
         batch = [generate_session(env, m, n_actions) for _ in range(BATCH_SIZE)]
         b_states, b_actions, b_rewards = map(np.array, zip(*batch))
 
@@ -69,6 +81,6 @@ if __name__ == "__main__":
             print("%d: mean reward = %.5f\tthreshold = %.1f" % (idx, np.mean(b_rewards), threshold))
             m.save_weights("t0-iter=%03d-thr=%.2f.hdf5" % (idx, threshold))
         else:
-            print("%d: no improvement" % idx)
+            print("%d: no improvement\tthreshold = %.1f" % (idx, threshold))
 
     pass
