@@ -9,7 +9,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 from keras.utils.np_utils import to_categorical
-from keras.optimizers import Adagrad
+from keras.optimizers import Adagrad, RMSprop
 
 
 BATCH_SIZE = 32
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     m = make_model(state_shape, n_actions)
     m.summary()
-    m.compile(optimizer=Adagrad(lr=0.01), loss='categorical_crossentropy')
+    m.compile(optimizer=RMSprop(lr=0.001), loss='categorical_crossentropy')
 
     if args.read:
         m.load_weights(args.read)
