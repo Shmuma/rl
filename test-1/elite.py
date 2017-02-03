@@ -81,7 +81,7 @@ if __name__ == "__main__":
         if len(elite_states) > 0:
             elite_states, elite_actions = map(np.concatenate, [elite_states, elite_actions])
             oh_actions = to_categorical(elite_actions, nb_classes=n_actions)
-            m.fit(elite_states, oh_actions, verbose=0)
+            m.fit(elite_states, oh_actions, verbose=0, nb_epoch=30)
             print("%d: mean reward = %.5f\tthreshold = %.1f" % (idx, np.mean(b_rewards), threshold))
 #            m.save_weights("t0-iter=%03d-thr=%.2f.hdf5" % (idx, threshold))
         else:
