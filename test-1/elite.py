@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--read", help="Read model weight from file, default=None")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("-e", "--env", default="CartPole-1", help="Environment to test on, default=CartPole-v1")
+    parser.add_argument("-e", "--env", default="CartPole-v1", help="Environment to test on, default=CartPole-v1")
     parser.add_argument("-l", "--limit", default=500, type=int, help="Limit of steps per episode")
     parser.add_argument("--iters", type=int, default=100, help="How many learning iterations to do, default=100")
     args = parser.parse_args()
