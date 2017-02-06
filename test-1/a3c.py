@@ -68,8 +68,8 @@ def make_model(state_shape, n_actions, train_mode=True):
         return run_model
 
     # we're training, life is much more interesting...
-    reward_t = Input(shape=(1, ), name='sum_reward')
-    action_t = Input(shape=(1, ), name='action', dtype='int32')
+    reward_t = Input(batch_shape=(None, 1), name='sum_reward')
+    action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
 
     # value loss
     value_loss_t = merge([value_t, reward_t], mode=lambda vals: mean_squared_error(vals[0], vals[1]),
@@ -81,6 +81,7 @@ def make_model(state_shape, n_actions, train_mode=True):
         policy_t, value_t, reward_t, action_t = args
         oh = K.one_hot(action_t, nb_classes=n_actions)
         p = K.log(policy_t) * oh
+        p = K.sum(p, axis=-1)
         return p * (reward_t - value_t)
 
     policy_loss_t = merge([policy_t, value_t, reward_t, action_t], mode=policy_loss_func,
@@ -88,15 +89,6 @@ def make_model(state_shape, n_actions, train_mode=True):
 
     train_model = Model(input=[in_t, reward_t, action_t], output=[value_loss_t, policy_loss_t, entropy_loss_t])
     return run_model, train_model
-
-
-def zero_loss_func(true_data, pred_data):
-    return K.zeros(shape=(None,))
-
-
-def identity_loss_func(_, loss_data):
-    return loss_data
-
 
 
 if __name__ == "__main__":
@@ -115,17 +107,9 @@ if __name__ == "__main__":
 
     # loss is kinda tricky here, as our model has three loss components and it depends not from given labels,
     # but from various components of input.
-    loss_dict = {}
-
-    # those outputs do not contribute to gradients
-#    for name in ('policy', 'value'):
-#        loss_dict[name] = zero_loss_func
-#        loss_weights[name] = 0.0
-    # those do
-    for name in ('policy_loss', 'value_loss', 'entropy_loss'):
-        loss_dict[name] = identity_loss_func
-
+    loss_dict = {name: lambda a, b: b for name in ('policy_loss', 'value_loss', 'entropy_loss')}
     train_m.compile(optimizer=RMSprop(), loss=loss_dict)
+
     # test run, to check correctness
     st = env.reset()
     obs, reward, done, _ = env.step(0)
@@ -133,6 +117,5 @@ if __name__ == "__main__":
         np.array([obs]), np.array([reward]), np.array([0])
     ])
     print(r)
-
 
     pass
