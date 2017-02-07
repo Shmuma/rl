@@ -82,19 +82,20 @@ def make_model(state_shape, n_actions, train_mode=True):
     entropy_loss_t = Lambda(lambda p: BETA * K.sum(p * K.log(p)), output_shape=(1, ), name='entropy_loss')(policy_t)
 
     def policy_loss_func(args):
-        policy_t, value_t, reward_t, action_t = args
+        policy_t, action_t = args
         oh = K.one_hot(action_t, nb_classes=n_actions)
         oh = K.squeeze(oh, 1)
         p = K.log(policy_t) * oh
-        p = K.sum(p, axis=-1)
-        return p * (reward_t - value_t)
+        p = K.sum(p, axis=-1, keepdims=True)
+        return p * K.stop_gradient(value_t - reward_t)
 
-    policy_loss_t = merge([policy_t, value_t, reward_t, action_t], mode=policy_loss_func,
-                          output_shape=(1, ), name='loss')
+    policy_loss_t = merge([policy_t, action_t], mode=policy_loss_func,
+                          output_shape=(1, ), name='policy_loss')
 #    loss_t = merge([policy_loss_t, policy_loss_t], mode='ave', name='loss')
 
-    train_model = Model(input=[in_t, reward_t, action_t], output=policy_loss_t)
-    return run_model, train_model
+    policy_model = Model(input=[in_t, reward_t, action_t], output=policy_loss_t)
+    value_model = Model(input=[in_t, reward_t, action_t], output=value_loss_t)
+    return run_model, policy_model, value_model
 
 
 def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
@@ -143,20 +144,20 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    run_m, train_m = make_model(state_shape, n_actions, train_mode=True)
-    train_m.summary()
+    run_m, policy_m, value_m = make_model(state_shape, n_actions, train_mode=True)
+    policy_m.summary()
 
-    loss_dict = {'loss': lambda a, b: b}
-    train_m.compile(optimizer=Adagrad(), loss=loss_dict)
+    policy_m.compile(optimizer=Adagrad(), loss={'policy_loss': lambda a, b: b})
+    value_m.compile(optimizer=Adagrad(), loss={'value_loss': lambda a, b: b})
 
     # test run, to check correctness
-    if args.monitor is None:
-        st = env.reset()
-        obs, reward, done, _ = env.step(0)
-        r = train_m.predict_on_batch([
-            np.array([obs]), np.array([reward]), np.array([0])
-        ])
-        print(r)
+    # if args.monitor is None:
+    #     st = env.reset()
+    #     obs, reward, done, _ = env.step(0)
+    #     r = train_m.predict_on_batch([
+    #         np.array([obs]), np.array([reward]), np.array([0])
+    #     ])
+    #     print(r)
 
     # tweak step limit
     step_limit = 200
@@ -166,6 +167,8 @@ if __name__ == "__main__":
     for iter in range(100):
         batch = create_batch(env, run_m, num_episodes=100, steps_limit=step_limit)
         fake_y = np.zeros(shape=(len(batch[2]),))
-        train_m.fit(batch, fake_y, verbose=0, nb_epoch=2)
-#        logger.info("%d: losses: %s", iter, r)
+        policy_loss = policy_m.train_on_batch(batch, fake_y)
+        value_loss = value_m.train_on_batch(batch, fake_y)
+#        value_loss = 0.0
+        logger.info("%d: policy_loss: %s, value_loss: %s", iter, policy_loss, value_loss)
     pass
