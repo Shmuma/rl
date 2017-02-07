@@ -3,6 +3,7 @@
 import logging
 import numpy as np
 import argparse
+import collections
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -11,14 +12,14 @@ import gym
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, merge
-from keras.optimizers import RMSprop
+from keras.optimizers import Adagrad
 from keras.objectives import mean_squared_error
 from keras import backend as K
 import tensorflow as tf
 
 HISTORY_STEPS = 4
-SIMPLE_L1_SIZE = 20
-SIMPLE_L2_SIZE = 20
+SIMPLE_L1_SIZE = 50
+SIMPLE_L2_SIZE = 50
 
 
 def HistoryWrapper(steps):
@@ -82,18 +83,53 @@ def make_model(state_shape, n_actions, train_mode=True):
         oh = K.one_hot(action_t, nb_classes=n_actions)
         p = K.log(policy_t) * oh
         p = K.sum(p, axis=-1)
-        return p * (reward_t - value_t)
+        return p * K.stop_gradient(reward_t - value_t)
 
     policy_loss_t = merge([policy_t, value_t, reward_t, action_t], mode=policy_loss_func,
                           output_shape=(1, ), name='policy_loss')
+    loss_t = merge([policy_loss_t, value_loss_t], mode='ave', name='loss')
 
-    train_model = Model(input=[in_t, reward_t, action_t], output=[value_loss_t, policy_loss_t, entropy_loss_t])
+    train_model = Model(input=[in_t, reward_t, action_t], output=loss_t)
     return run_model, train_model
+
+
+def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
+    """
+    Play given amount of episodes and prepare data to train on
+    :param env: Environment instance
+    :param run_model: Model to take actions
+    :param num_episodes: count of episodes to run
+    :return: batch in format required by model
+    """
+    episodes = []
+    rewards = []
+    values = []
+    for _ in range(num_episodes):
+        state = env.reset()
+        sum_reward = 0.0
+        step = 0
+        while True:
+            # chose action to take
+            policy, value = run_model.predict_on_batch(np.array([state]))
+            values.append(value)
+            action = np.argmax(policy)
+            next_state, reward, done, _ = env.step(action)
+            sum_reward = gamma*sum_reward + reward
+            episodes.append((state, action, sum_reward))
+            state = next_state
+            step += 1
+            if done or (steps_limit is not None and steps_limit == step):
+                rewards.append(sum_reward)
+                break
+    logger.info("Mean final reward: %s, value: %s", np.mean(rewards), np.mean(values))
+    # convert data to train format
+    np.random.shuffle(episodes)
+    return list(map(np.array, zip(*episodes)))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--env", default="MountainCar-v0", help="Environment name to use")
+    parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     args = parser.parse_args()
 
     env = make_env(args.env)
@@ -107,8 +143,9 @@ if __name__ == "__main__":
 
     # loss is kinda tricky here, as our model has three loss components and it depends not from given labels,
     # but from various components of input.
-    loss_dict = {name: lambda a, b: b for name in ('policy_loss', 'value_loss', 'entropy_loss')}
-    train_m.compile(optimizer=RMSprop(), loss=loss_dict)
+#    loss_dict = {name: lambda a, b: b for name in ('policy_loss', 'value_loss', 'entropy_loss')}
+    loss_dict = {'loss': lambda a, b: b}
+    train_m.compile(optimizer=Adagrad(), loss=loss_dict)
 
     # test run, to check correctness
     st = env.reset()
@@ -118,4 +155,9 @@ if __name__ == "__main__":
     ])
     print(r)
 
+    for iter in range(100):
+        batch = create_batch(env, run_m, num_episodes=100, steps_limit=200)
+        fake_y = np.zeros(shape=(len(batch[2]),))
+        train_m.fit(batch, fake_y, verbose=0, nb_epoch=2)
+#        logger.info("%d: losses: %s", iter, r)
     pass
