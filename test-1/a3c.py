@@ -8,7 +8,7 @@ import collections
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-import gym
+import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, merge
@@ -51,8 +51,11 @@ def HistoryWrapper(steps):
     return HistoryWrapper
 
 
-def make_env(env_name):
-    return HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
+def make_env(env_name, monitor_dir):
+    env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
+    if monitor_dir:
+        env = gym.wrappers.Monitor(env, monitor_dir)
+    return env
 
 
 def make_model(state_shape, n_actions, train_mode=True):
@@ -121,7 +124,7 @@ def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
             if done or (steps_limit is not None and steps_limit == step):
                 rewards.append(sum_reward)
                 break
-    logger.info("Mean final reward: %s, value: %s", np.mean(rewards), np.mean(values))
+    logger.info("Mean final reward: %.3f, max: %.3f, value: %s", np.mean(rewards), np.max(rewards), np.mean(values))
     # convert data to train format
     np.random.shuffle(episodes)
     return list(map(np.array, zip(*episodes)))
@@ -130,9 +133,10 @@ def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
+    parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     args = parser.parse_args()
 
-    env = make_env(args.env)
+    env = make_env(args.env, args.monitor)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
@@ -141,22 +145,25 @@ if __name__ == "__main__":
     run_m, train_m = make_model(state_shape, n_actions, train_mode=True)
     train_m.summary()
 
-    # loss is kinda tricky here, as our model has three loss components and it depends not from given labels,
-    # but from various components of input.
-#    loss_dict = {name: lambda a, b: b for name in ('policy_loss', 'value_loss', 'entropy_loss')}
     loss_dict = {'loss': lambda a, b: b}
     train_m.compile(optimizer=Adagrad(), loss=loss_dict)
 
     # test run, to check correctness
-    st = env.reset()
-    obs, reward, done, _ = env.step(0)
-    r = train_m.predict_on_batch([
-        np.array([obs]), np.array([reward]), np.array([0])
-    ])
-    print(r)
+    if args.monitor is None:
+        st = env.reset()
+        obs, reward, done, _ = env.step(0)
+        r = train_m.predict_on_batch([
+            np.array([obs]), np.array([reward]), np.array([0])
+        ])
+        print(r)
+
+    # tweak step limit
+    step_limit = 200
+    if args.monitor is not None:
+        step_limit = None
 
     for iter in range(100):
-        batch = create_batch(env, run_m, num_episodes=100, steps_limit=200)
+        batch = create_batch(env, run_m, num_episodes=100, steps_limit=step_limit)
         fake_y = np.zeros(shape=(len(batch[2]),))
         train_m.fit(batch, fake_y, verbose=0, nb_epoch=2)
 #        logger.info("%d: losses: %s", iter, r)
