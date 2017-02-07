@@ -72,14 +72,14 @@ def make_model(state_shape, n_actions, train_mode=True):
         return run_model
 
     # we're training, life is much more interesting...
-    reward_t = Input(batch_shape=(None, 1), name='sum_reward')
-    action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
+    # reward_t = Input(batch_shape=(None, 1), name='sum_reward')
+    # action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
 
     # value loss
-    value_loss_t = merge([value_t, reward_t], mode=lambda vals: mean_squared_error(vals[0], vals[1]),
-                         output_shape=(1, ), name='value_loss')
-    BETA = 0.01
-    entropy_loss_t = Lambda(lambda p: BETA * K.sum(p * K.log(p)), output_shape=(1, ), name='entropy_loss')(policy_t)
+    # value_loss_t = merge([value_t, reward_t], mode=lambda vals: mean_squared_error(vals[0], vals[1]),
+    #                      output_shape=(1, ), name='value_loss')
+    # BETA = 0.01
+    # entropy_loss_t = Lambda(lambda p: BETA * K.sum(p * K.log(p)), output_shape=(1, ), name='entropy_loss')(policy_t)
 
     # def policy_loss_func(args):
     #     policy_t, action_t = args
@@ -93,8 +93,8 @@ def make_model(state_shape, n_actions, train_mode=True):
     #                       output_shape=(1, ), name='policy_loss')
 #    loss_t = merge([policy_loss_t, policy_loss_t], mode='ave', name='loss')
 
-    policy_model = Model(input=[in_t, reward_t, action_t], output=policy_t)
-    value_model = Model(input=[in_t, reward_t, action_t], output=value_loss_t)
+    policy_model = Model(input=in_t, output=policy_t)
+    value_model = Model(input=in_t, output=value_t)
     return run_model, policy_model, value_model
 
 
@@ -118,15 +118,13 @@ def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
             policy, value = run_model.predict_on_batch(np.array([state]))
             policy = policy[0]
             value = value[0]
-            print(policy, value)
             values.append(value)
             action = np.argmax(policy)
             next_state, reward, done, _ = env.step(action)
             sum_reward = gamma*sum_reward + reward
             policy_tgt = np.copy(policy)
-            print(policy, policy_tgt, action)
-            policy_tgt[action] = sum_reward
-            episodes.append((state, action, sum_reward, policy_tgt))
+            policy_tgt[action] *= sum_reward - value
+            episodes.append((state, sum_reward, policy_tgt))
             state = next_state
             step += 1
             if done or (steps_limit is not None and steps_limit == step):
@@ -135,8 +133,7 @@ def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
     logger.info("Mean final reward: %.3f, max: %.3f, value: %s", np.mean(rewards), np.max(rewards), np.mean(values))
     # convert data to train format
     np.random.shuffle(episodes)
-    data = list(map(np.array, zip(*episodes)))
-    return data[:-1], data[-1]
+    return list(map(np.array, zip(*episodes)))
 
 
 if __name__ == "__main__":
@@ -155,7 +152,7 @@ if __name__ == "__main__":
     policy_m.summary()
 
     policy_m.compile(optimizer=Adagrad(), loss='mse')
-    value_m.compile(optimizer=Adagrad(), loss={'value_loss': lambda a, b: b})
+    value_m.compile(optimizer=Adagrad(), loss='mse')
 
     # test run, to check correctness
     # if args.monitor is None:
@@ -172,10 +169,12 @@ if __name__ == "__main__":
         step_limit = None
 
     for iter in range(100):
-        batch, policy_y = create_batch(env, run_m, num_episodes=100, steps_limit=step_limit)
-        fake_y = np.zeros(shape=(len(batch[2]),))
-        policy_loss = policy_m.train_on_batch(batch, policy_y)
-        #value_loss = value_m.train_on_batch(batch, fake_y)
-#        value_loss = 0.0
-        logger.info("%d: policy_loss: %s, value_loss: %s", iter, policy_loss, value_loss)
+        batch, rewards, policy_y = create_batch(env, run_m, num_episodes=100, steps_limit=step_limit)
+#        fake_y = np.zeros(shape=(len(batch[2]),))
+        policy_losses = []
+        value_losses = []
+        for _ in range(10):
+            policy_losses += [policy_m.train_on_batch(batch, policy_y)]
+            value_losses += [value_m.train_on_batch(batch, rewards)]
+        logger.info("%d: policy_loss: %s, value_loss: %s", iter, np.mean(policy_losses), np.mean(value_losses))
     pass
