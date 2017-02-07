@@ -84,15 +84,16 @@ def make_model(state_shape, n_actions, train_mode=True):
     def policy_loss_func(args):
         policy_t, value_t, reward_t, action_t = args
         oh = K.one_hot(action_t, nb_classes=n_actions)
+        oh = K.squeeze(oh, 1)
         p = K.log(policy_t) * oh
         p = K.sum(p, axis=-1)
-        return p * K.stop_gradient(reward_t - value_t)
+        return p * (reward_t - value_t)
 
     policy_loss_t = merge([policy_t, value_t, reward_t, action_t], mode=policy_loss_func,
-                          output_shape=(1, ), name='policy_loss')
-    loss_t = merge([policy_loss_t, value_loss_t], mode='ave', name='loss')
+                          output_shape=(1, ), name='loss')
+#    loss_t = merge([policy_loss_t, policy_loss_t], mode='ave', name='loss')
 
-    train_model = Model(input=[in_t, reward_t, action_t], output=loss_t)
+    train_model = Model(input=[in_t, reward_t, action_t], output=policy_loss_t)
     return run_model, train_model
 
 
