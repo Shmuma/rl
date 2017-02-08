@@ -12,7 +12,7 @@ import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, merge
-from keras.optimizers import Adagrad
+from keras.optimizers import Adagrad, RMSprop
 from keras.objectives import mean_squared_error
 from keras import backend as K
 import tensorflow as tf
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     #     ])
     #     print(r)
 
-    # tweak step limit
+    epoch_limit = 10
     step_limit = 200
     if args.monitor is not None:
         step_limit = None
@@ -171,10 +171,27 @@ if __name__ == "__main__":
     for iter in range(100):
         batch, rewards, policy_y = create_batch(env, run_m, num_episodes=100, steps_limit=step_limit)
 #        fake_y = np.zeros(shape=(len(batch[2]),))
-        policy_losses = []
-        value_losses = []
-        for _ in range(10):
-            policy_losses += [policy_m.train_on_batch(batch, policy_y)]
-            value_losses += [value_m.train_on_batch(batch, rewards)]
-        logger.info("%d: policy_loss: %s, value_loss: %s", iter, np.mean(policy_losses), np.mean(value_losses))
+        # iterate until our losses decreased 10 times or epoches limit exceeded
+        start_p_loss, start_v_loss = None, None
+        p_loss, v_loss = None, None
+        converged = False
+        for epoch in range(epoch_limit):
+            p_h = policy_m.fit(batch, policy_y, verbose=0, batch_size=128)
+            p_loss = np.min(p_h.history['loss'])
+
+            v_h = value_m.fit(batch, rewards, verbose=0, batch_size=128)
+            v_loss = np.min(v_h.history['loss'])
+
+            if start_p_loss is None:
+                start_p_loss = np.max(p_h.history['loss'])
+                start_v_loss = np.max(v_h.history['loss'])
+            else:
+                if start_p_loss / p_loss > 2 and start_v_loss / v_loss > 2:
+                    logger.info("%d: after %d epoches: p_loss %.3f -> %.3f, v_loss %.3f -> %.3f",
+                                iter, epoch, start_p_loss, p_loss, start_v_loss, v_loss)
+                    converged = True
+                    break
+        if not converged:
+            logger.info("%d: haven't converged: p_loss %.3f -> %.3f, v_loss %.3f -> %.3f",
+                        iter, start_p_loss, p_loss, start_v_loss, v_loss)
     pass
