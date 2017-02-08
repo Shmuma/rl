@@ -38,12 +38,13 @@ def make_model(state_shape, n_actions):
     return Model(input=in_t, output=value_t)
 
 
-def create_batch(iter_no, env, run_model, num_episodes, n_steps, steps_limit=1000, gamma=1.0, tau=0.1):
+def create_batch(iter_no, env, run_model, num_episodes, n_steps, steps_limit=1000, gamma=1.0, tau=0.20):
     """
     Play given amount of episodes and prepare data to train on
     :param env: Environment instance
     :param run_model: Model to take actions
     :param num_episodes: count of episodes to run
+    :param n_steps: boolean, do we use n-steps DQN or 1-step
     :return: batch in format required by model
     """
     samples = []
@@ -68,7 +69,7 @@ def create_batch(iter_no, env, run_model, num_episodes, n_steps, steps_limit=100
             state = next_state
             step += 1
 
-            # if episode is done, we save it in last_q
+            # if episode is done, last_q is None
             if done:
                 last_q = None
                 rewards.append(sum_reward)
@@ -79,12 +80,21 @@ def create_batch(iter_no, env, run_model, num_episodes, n_steps, steps_limit=100
                 rewards.append(sum_reward)
                 break
 
-        # now we need to unroll our episodes backward to generate training samples
+        # R_sum is used only in n-steps DQN and holds discounted reward for all episode
+        if last_q is None:
+            R_sum = 0.0
+        else:
+            R_sum = max(last_q)
+        # now we need to unroll our episode backward to generate training samples
         for state, q_value, action, reward in reversed(episode):
             # get approximated target reward for this state
-            R = reward
-            if last_q is not None:
-                R += gamma * max(last_q)
+            R_sum = R_sum*gamma + reward
+            if n_steps:
+                R = R_sum
+            else:
+                R = reward
+                if last_q is not None:
+                    R += gamma * max(last_q)
             target_q = np.copy(q_value)
             target_q[action] = R
             samples.append((state, target_q))
@@ -101,7 +111,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("-n", "--steps", type=int, default=1, help="Count of unrolling steps in n-step DQN, default=1")
+    parser.add_argument("--n-steps", action='store_true', default=False,
+                        help="Enable n-step DQN, default=1-step")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -129,7 +140,7 @@ if __name__ == "__main__":
         step_limit = None
 
     for iter in range(100):
-        batch, target_y = create_batch(iter, env, model, n_steps=args.steps, num_episodes=20, steps_limit=step_limit)
+        batch, target_y = create_batch(iter, env, model, n_steps=args.n_steps, num_episodes=20, steps_limit=step_limit)
         # iterate until our losses decreased 10 times or epoches limit exceeded
         start_loss = None
         loss = None
