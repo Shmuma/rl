@@ -98,7 +98,7 @@ def make_model(state_shape, n_actions, train_mode=True):
     return run_model, policy_model, value_model
 
 
-def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
+def create_batch(env, run_model, num_episodes, n_actions, steps_limit=1000, gamma=1.0):
     """
     Play given amount of episodes and prepare data to train on
     :param env: Environment instance
@@ -119,7 +119,7 @@ def create_batch(env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
             policy = policy[0]
             value = value[0]
             values.append(value)
-            action = np.argmax(policy)
+            action = np.random.choice(range(n_actions), p=policy)
             next_state, reward, done, _ = env.step(action)
             sum_reward = gamma*sum_reward + reward
             policy_tgt = np.copy(policy)
@@ -166,10 +166,11 @@ if __name__ == "__main__":
     epoch_limit = 10
     step_limit = 200
     if args.monitor is not None:
-        step_limit = None
+        step_limit = 200
 
     for iter in range(100):
-        batch, rewards, policy_y = create_batch(env, run_m, num_episodes=100, steps_limit=step_limit)
+        batch, rewards, policy_y = create_batch(env, run_m, n_actions=n_actions,
+                                                num_episodes=100, steps_limit=step_limit)
 #        fake_y = np.zeros(shape=(len(batch[2]),))
         # iterate until our losses decreased 10 times or epoches limit exceeded
         start_p_loss, start_v_loss = None, None
