@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
+from .wrappers import HistoryWrapper
+
 import logging
 import numpy as np
 import argparse
-import collections
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -13,42 +14,10 @@ import gym, gym.wrappers
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, merge
 from keras.optimizers import Adagrad, RMSprop
-from keras.objectives import mean_squared_error
-from keras import backend as K
-import tensorflow as tf
 
 HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
-
-
-def HistoryWrapper(steps):
-    class HistoryWrapper(gym.Wrapper):
-        """
-        Track history of observations for given amount of steps
-        Initial steps are zero-filled
-        """
-        def __init__(self, env):
-            super(HistoryWrapper, self).__init__(env)
-            self.steps = steps
-            self.history = self._make_history()
-
-        def _make_history(self):
-            return [np.zeros(shape=self.env.observation_space.shape) for _ in range(steps)]
-
-        def _step(self, action):
-            obs, reward, done, info = self.env.step(action)
-            self.history.pop(0)
-            self.history.append(obs)
-            return np.array(self.history), reward, done, info
-
-        def _reset(self):
-            self.history = self._make_history()
-            self.history.pop(0)
-            self.history.append(self.env.reset())
-            return np.array(self.history)
-
-    return HistoryWrapper
 
 
 def make_env(env_name, monitor_dir):
