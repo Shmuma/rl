@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
-from .wrappers import HistoryWrapper
-
-import logging
-import numpy as np
 import argparse
+import logging
+
+import numpy as np
+
+from rl_lib.wrappers import HistoryWrapper
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -12,8 +13,8 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, merge
-from keras.optimizers import Adagrad, RMSprop
+from keras.layers import Input, Dense, Flatten
+from keras.optimizers import Adagrad
 
 HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
