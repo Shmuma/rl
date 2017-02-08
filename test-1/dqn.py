@@ -38,7 +38,7 @@ def make_model(state_shape, n_actions):
     return Model(input=in_t, output=value_t)
 
 
-def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=1.0):
+def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=1.0, tau=0.1):
     """
     Play given amount of episodes and prepare data to train on
     :param env: Environment instance
@@ -57,7 +57,10 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         while True:
             # chose action to take
             q_value = run_model.predict_on_batch(np.array([state]))[0]
-            action = np.argmax(q_value)
+            if np.random.random() < tau:
+                action = np.random.randint(0, len(q_value))
+            else:
+                action = np.argmax(q_value)
             next_state, reward, done, _ = env.step(action)
             episode.append((state, q_value, action, reward))
             sum_reward = reward + gamma * sum_reward
@@ -98,6 +101,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
+    parser.add_argument("-n", "--steps", type=int, default=1, help="Count of unrolling steps in n-step DQN, default=1")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
