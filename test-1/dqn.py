@@ -111,6 +111,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
+    parser.add_argument("-t", "--tau", type=float, default=0.2, help="Ratio of random steps, default=0.2")
     parser.add_argument("--n-steps", action='store_true', default=False,
                         help="Enable n-step DQN, default=1-step")
     args = parser.parse_args()
@@ -140,7 +141,8 @@ if __name__ == "__main__":
         step_limit = None
 
     for iter in range(100):
-        batch, target_y = create_batch(iter, env, model, n_steps=args.n_steps, num_episodes=20, steps_limit=step_limit)
+        batch, target_y = create_batch(iter, env, model, n_steps=args.n_steps, tau=args.tau,
+                                       num_episodes=20, steps_limit=step_limit)
         # iterate until our losses decreased 10 times or epoches limit exceeded
         start_loss = None
         loss = None
@@ -153,11 +155,5 @@ if __name__ == "__main__":
                 start_loss = np.max(p_h.history['loss'])
             else:
                 if start_loss / loss > 1.5:
-                    # logger.info("%d: after %d epoches: loss %.3f -> %.3f",
-                    #             iter, epoch, start_loss, loss)
-                    converged = True
                     break
-        # if not converged:
-        #     logger.info("%d: haven't converged: loss %.3f -> %.3f",
-        #                 iter, start_loss, loss)
     pass
