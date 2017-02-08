@@ -112,6 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("-t", "--tau", type=float, default=0.2, help="Ratio of random steps, default=0.2")
+    parser.add_argument("-i", "--iters", type=int, default=100, help="Count if iterations to take, default=100")
     parser.add_argument("--n-steps", action='store_true', default=False,
                         help="Enable n-step DQN, default=1-step")
     args = parser.parse_args()
@@ -140,7 +141,7 @@ if __name__ == "__main__":
     if args.monitor is not None:
         step_limit = None
 
-    for iter in range(100):
+    for iter in range(args.iters):
         batch, target_y = create_batch(iter, env, model, n_steps=args.n_steps, tau=args.tau,
                                        num_episodes=20, steps_limit=step_limit)
         # iterate until our losses decreased 10 times or epoches limit exceeded
