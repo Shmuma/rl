@@ -38,7 +38,7 @@ def make_model(state_shape, n_actions):
     return Model(input=in_t, output=value_t)
 
 
-def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=1.0, tau=0.1):
+def create_batch(iter_no, env, run_model, num_episodes, n_steps, steps_limit=1000, gamma=1.0, tau=0.1):
     """
     Play given amount of episodes and prepare data to train on
     :param env: Environment instance
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         step_limit = None
 
     for iter in range(100):
-        batch, target_y = create_batch(iter, env, model, num_episodes=20, steps_limit=step_limit)
+        batch, target_y = create_batch(iter, env, model, n_steps=args.steps, num_episodes=20, steps_limit=step_limit)
         # iterate until our losses decreased 10 times or epoches limit exceeded
         start_loss = None
         loss = None
