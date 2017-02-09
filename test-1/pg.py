@@ -81,13 +81,13 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         elif samples_counter >= min_samples and len(episodes) >= num_episodes:
             break
 
-    mean_final_reward = np.mean(rewards)
-    disp = np.max(rewards) - np.min(rewards)
+    # mean_final_reward = np.mean(rewards)
+    # disp = np.max(rewards) - np.min(rewards)
     # convert episodes into samples
     for episode, episode_reward in zip(episodes, rewards):
         # now we need to unroll our episode backward to generate training samples
         for state, probs, action, reward in reversed(episode):
-            target = (episode_reward - mean_final_reward) * np.log(probs[action]) / disp
+            target = episode_reward * np.log(probs[action])
             samples.append((state, target))
 
     logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f",
@@ -119,6 +119,14 @@ if __name__ == "__main__":
     model.summary()
 
     model.compile(optimizer=Adagrad(), loss=test_loss)
+
+    # gradient check
+    if True:
+        batch, target_y = create_batch(0, env, model, tau=0, num_episodes=1, steps_limit=10, min_samples=None)
+        r = model.predict_on_batch(batch)
+        l = model.train_on_batch(batch, target_y)
+        r2 = model.predict_on_batch(batch)
+
 
     epoch_limit = 2
     step_limit = 300
