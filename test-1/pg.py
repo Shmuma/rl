@@ -14,7 +14,7 @@ import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda
-from keras.optimizers import Adagrad
+from keras.optimizers import Adagrad, RMSprop
 from keras import backend as K
 
 HISTORY_STEPS = 2
@@ -43,7 +43,7 @@ def make_model(state_shape, n_actions):
         p_t, act_t, adv_t = args
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
-        p_oh_t = K.clip(K.log(K.sum(oh_t * p_t, axis=-1, keepdims=True)), -2.0, 2.0)
+        p_oh_t = K.log(1e-6 + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
         return res_t
 
@@ -99,16 +99,15 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         elif samples_counter >= min_samples and len(episodes) >= num_episodes:
             break
 
-    # mean_final_reward = np.mean(rewards)
+    mean_final_reward = np.median(rewards)
     # norm = np.linalg.norm(rewards)
     # if norm < 1e-5:
     #     norm = 1.0
-    # disp = np.max(rewards) - np.min(rewards)
     # convert episodes into samples
     for episode, episode_reward in zip(episodes, rewards):
         # now we need to unroll our episode backward to generate training samples
         for state, probs, action, reward in reversed(episode):
-            samples.append((state, action, episode_reward))
+            samples.append((state, action, episode_reward - mean_final_reward))
 
     logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f",
                 iter_no, len(samples), len(episodes), np.mean(rewards), np.max(rewards))
@@ -128,7 +127,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("-t", "--tau", type=float, default=0.0, help="Ratio of random steps, default=0.2")
+    parser.add_argument("-t", "--tau", type=float, default=0.2, help="Ratio of random steps, default=0.2")
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count if iterations to take, default=100")
     args = parser.parse_args()
 
@@ -145,13 +144,13 @@ if __name__ == "__main__":
         # our model already outputs loss, so just take it as-is
         'loss': lambda y_true, y_pred: y_pred,
         # this will make zero gradients contribution
-        'policy': lambda y_true, y_pred: y_true
+        'policy': lambda y_true, y_pred: y_true,
     }
 
     model.compile(optimizer=Adagrad(), loss=loss_dict)
 
     # gradient check
-    if True:
+    if False:
         batch, action, advantage = create_batch(0, env, model, tau=0, num_episodes=1, steps_limit=10, min_samples=None)
         r = model.predict_on_batch([batch, action, advantage])
         fake_out = create_fake_target(n_actions, len(batch))
@@ -165,7 +164,8 @@ if __name__ == "__main__":
 
     for iter in range(args.iters):
         batch, action, advantage = create_batch(iter, env, model, tau=args.tau, num_episodes=10,
-                                                steps_limit=step_limit, min_samples=2000)
+                                                steps_limit=step_limit, min_samples=5000)
         fake_out = create_fake_target(n_actions, len(batch))
-        model.fit([batch, action, advantage], fake_out, verbose=0, batch_size=512)
+        l = model.train_on_batch([batch, action, advantage], fake_out)
+        logger.info("Loss: %s", l[0])
     pass
