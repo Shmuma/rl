@@ -99,7 +99,10 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         elif samples_counter >= min_samples and len(episodes) >= num_episodes:
             break
 
-    mean_final_reward = np.median(rewards)
+    norm_rewards = np.copy(rewards)
+    norm_rewards -= np.mean(norm_rewards)
+    norm_rewards /= np.std(norm_rewards)
+
     # norm = np.linalg.norm(rewards)
     # if norm < 1e-5:
     #     norm = 1.0
@@ -107,7 +110,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
     for episode, episode_reward in zip(episodes, rewards):
         # now we need to unroll our episode backward to generate training samples
         for state, probs, action, reward in reversed(episode):
-            samples.append((state, action, episode_reward - mean_final_reward))
+            samples.append((state, action, episode_reward))
 
     logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f",
                 iter_no, len(samples), len(episodes), np.mean(rewards), np.max(rewards))
