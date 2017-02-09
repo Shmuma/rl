@@ -17,7 +17,7 @@ from keras.layers import Input, Dense, Flatten, Lambda
 from keras.optimizers import Adagrad, RMSprop
 from keras import backend as K
 
-HISTORY_STEPS = 2
+HISTORY_STEPS = 1
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
@@ -61,15 +61,15 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
     :return: batch in format required by model
     """
     samples = []
-    rewards = []
-    episodes = []
-
+    sum_rewards = []
+    episodes_counter = 0
     samples_counter = 0
     while True:
         state = env.reset()
         step = 0
         sum_reward = 0.0
         episode = []
+        rewards = []
         while True:
             # chose action to take
             probs = run_model.predict_on_batch([
@@ -79,41 +79,47 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
             ])[0][0]
             if np.random.random() < tau:
                 action = np.random.randint(0, len(probs))
+                probs = np.ones_like(probs)
+                probs /= np.sum(probs)
             else:
                 action = np.random.choice(len(probs), p=probs)
             next_state, reward, done, _ = env.step(action)
-            episode.append((state, probs, action, reward))
+            rewards.append(reward)
+            episode.append((state, probs, action))
             sum_reward = reward + gamma * sum_reward
-
             state = next_state
             step += 1
             samples_counter += 1
 
             if done or (steps_limit is not None and steps_limit == step):
-                rewards.append(sum_reward)
+                sum_rewards.append(sum_reward)
                 break
-        episodes.append(episode)
+
+        episodes_counter += 1
+
+        # calculate discounted rewards backward
+        sum_reward = 0.0
+        disc_reward = []
+        for r in reversed(rewards):
+            sum_reward = sum_reward * gamma + r
+            disc_reward.append(sum_reward)
+
+        # disc_reward = np.array(disc_reward)
+        # disc_reward -= np.mean(disc_reward)
+        # disc_reward /= np.std(disc_reward)
+
+        # process episode from back, collecting discounted reward and populate our samples buffer
+        for idx, (state, probs, action) in enumerate(reversed(episode)):
+            samples.append((state, action, disc_reward[idx]))
+
         if min_samples is None:
-            if len(episodes) == num_episodes:
+            if episodes_counter == num_episodes:
                 break
-        elif samples_counter >= min_samples and len(episodes) >= num_episodes:
+        elif samples_counter >= min_samples and episodes_counter >= num_episodes:
             break
 
-    norm_rewards = np.copy(rewards)
-    norm_rewards -= np.mean(norm_rewards)
-    norm_rewards /= np.std(norm_rewards)
-
-    # norm = np.linalg.norm(rewards)
-    # if norm < 1e-5:
-    #     norm = 1.0
-    # convert episodes into samples
-    for episode, episode_reward in zip(episodes, rewards):
-        # now we need to unroll our episode backward to generate training samples
-        for state, probs, action, reward in reversed(episode):
-            samples.append((state, action, episode_reward))
-
     logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f",
-                iter_no, len(samples), len(episodes), np.mean(rewards), np.max(rewards))
+                iter_no, len(samples), episodes_counter, np.mean(sum_rewards), np.max(sum_rewards))
     # convert data to train format
     np.random.shuffle(samples)
     return list(map(np.array, zip(*samples)))
@@ -167,8 +173,7 @@ if __name__ == "__main__":
 
     for iter in range(args.iters):
         batch, action, advantage = create_batch(iter, env, model, tau=args.tau, num_episodes=10,
-                                                steps_limit=step_limit, min_samples=5000)
+                                                steps_limit=step_limit, min_samples=500)
         fake_out = create_fake_target(n_actions, len(batch))
         l = model.train_on_batch([batch, action, advantage], fake_out)
-        logger.info("Loss: %s", l[0])
     pass
