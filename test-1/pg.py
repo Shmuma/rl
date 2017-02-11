@@ -45,7 +45,7 @@ def make_model(state_shape, n_actions):
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(1e-6 + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
-        return res_t
+        return -res_t
 
     loss_t = Lambda(loss_func, output_shape=(1,), name='loss')([policy_t, action_t, advantage_t])
 
@@ -62,14 +62,14 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
     """
     samples = []
     rewards = []
-    episodes = []
 
-    samples_counter = 0
+    episodes_counter = 0
     while True:
         state = env.reset()
         step = 0
         sum_reward = 0.0
         episode = []
+        loc_rewards = []
         while True:
             # chose action to take
             probs = run_model.predict_on_batch([
@@ -82,35 +82,40 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
             else:
                 action = np.random.choice(len(probs), p=probs)
             next_state, reward, done, _ = env.step(action)
-            episode.append((state, probs, action, reward))
+            episode.append((state, probs, action))
+            loc_rewards.append(reward)
             sum_reward = reward + gamma * sum_reward
 
             state = next_state
             step += 1
-            samples_counter += 1
 
             if done or (steps_limit is not None and steps_limit == step):
                 rewards.append(sum_reward)
                 break
-        episodes.append(episode)
+
+        # create reversed reward
+        sum_reward = 0.0
+        rev_rewards = []
+        for r in reversed(loc_rewards):
+            sum_reward = sum_reward * gamma + r
+            rev_rewards.append(sum_reward)
+        rev_rewards = np.copy(rev_rewards)
+        rev_rewards -= np.mean(rev_rewards)
+        rev_rewards /= np.std(rev_rewards)
+
+        # generate samples from episode
+        for reward, (state, probs, action) in zip(rev_rewards, reversed(episode)):
+            samples.append((state, action, reward))
+        episodes_counter += 1
+
         if min_samples is None:
-            if len(episodes) == num_episodes:
+            if episodes_counter == num_episodes:
                 break
-        elif samples_counter >= min_samples and len(episodes) >= num_episodes:
+        elif len(samples) >= min_samples and episodes_counter >= num_episodes:
             break
 
-    mean_final_reward = np.median(rewards)
-    # norm = np.linalg.norm(rewards)
-    # if norm < 1e-5:
-    #     norm = 1.0
-    # convert episodes into samples
-    for episode, episode_reward in zip(episodes, rewards):
-        # now we need to unroll our episode backward to generate training samples
-        for state, probs, action, reward in reversed(episode):
-            samples.append((state, action, episode_reward - mean_final_reward))
-
     logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f",
-                iter_no, len(samples), len(episodes), np.mean(rewards), np.max(rewards))
+                iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards))
     # convert data to train format
     np.random.shuffle(samples)
     return list(map(np.array, zip(*samples)))
@@ -167,5 +172,5 @@ if __name__ == "__main__":
                                                 steps_limit=step_limit, min_samples=5000)
         fake_out = create_fake_target(n_actions, len(batch))
         l = model.train_on_batch([batch, action, advantage], fake_out)
-        logger.info("Loss: %s", l[0])
+        #logger.info("Loss: %s", l[0])
     pass
