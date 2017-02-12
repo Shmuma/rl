@@ -17,7 +17,7 @@ from keras.layers import Input, Dense, Flatten, Lambda
 from keras.optimizers import Adagrad
 from keras import backend as K
 
-HISTORY_STEPS = 4
+HISTORY_STEPS = 1
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
