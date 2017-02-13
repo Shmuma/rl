@@ -182,13 +182,12 @@ if __name__ == "__main__":
     model.compile(optimizer=Adagrad(), loss=losses_dict)
 
     # gradient check
-    # if False:
-    #     batch, action, advantage = create_batch(0, env, model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
-    #     r = model.predict_on_batch([batch, action, advantage])
-    #     fake_out = create_fake_target(n_actions, len(batch))
-    #     l = model.train_on_batch([batch, action, advantage], fake_out)
-    #     r2 = model.predict_on_batch([batch, action, advantage])
-    #     logger.info("Test fit, mean loss: %s -> %s", np.mean(r[1]), np.mean(r2[1]))
+    if False:
+        batch, action, advantage, reward = create_batch(0, env, model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
+        r = model.predict_on_batch([batch, action, advantage])
+        l = model.train_on_batch([batch, action, advantage], [reward]*3)
+        r2 = model.predict_on_batch([batch, action, advantage])
+        logger.info("Test fit, mean loss: %s -> %s", np.mean(r[2]), np.mean(r2[2]))
 
     step_limit = 300
     if args.monitor is not None:
