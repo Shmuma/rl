@@ -14,7 +14,7 @@ import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda
-from keras.optimizers import Adagrad
+from keras.optimizers import Adagrad, RMSprop
 from keras import backend as K
 
 HISTORY_STEPS = 1
@@ -56,7 +56,7 @@ def make_model(state_shape, n_actions, train_mode=True):
         p_oh_t = K.log(1e-6 + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
         x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
-        return -res_t + X_ENTROPY_BETA * x_entropy_t
+        return -res_t - X_ENTROPY_BETA * x_entropy_t
 
     loss_args = [policy_t, action_t, advantage_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
@@ -133,9 +133,9 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         for r in reversed(loc_rewards):
             sum_reward = sum_reward * gamma + r
             rev_rewards.append(sum_reward)
-        rev_rewards = np.copy(rev_rewards)
-        rev_rewards -= np.mean(rev_rewards)
-        rev_rewards /= np.std(rev_rewards)
+        # rev_rewards = np.copy(rev_rewards)
+        # rev_rewards -= np.mean(rev_rewards)
+        # rev_rewards /= np.std(rev_rewards)
 
         # generate samples from episode
         for reward, (state, probs, value, action) in zip(rev_rewards, reversed(episode)):
@@ -182,7 +182,7 @@ if __name__ == "__main__":
         'policy': lambda y_true, y_pred: y_true
     }
 
-    model.compile(optimizer=Adagrad(), loss=losses_dict)
+    model.compile(optimizer=RMSprop(lr=0.0001), loss=losses_dict)
 
     # gradient check
     if False:
@@ -192,13 +192,13 @@ if __name__ == "__main__":
         r2 = model.predict_on_batch([batch, action, advantage])
         logger.info("Test fit, mean loss: %s -> %s", np.mean(r[2]), np.mean(r2[2]))
 
-    step_limit = 300
+    step_limit = 500
     if args.monitor is not None:
         step_limit = None
 
     for iter in range(args.iters):
-        batch, action, advantage, reward = create_batch(iter, env, model, eps=args.eps, num_episodes=10,
+        batch, action, advantage, reward = create_batch(iter, env, model, eps=args.eps, num_episodes=1,
                                                 steps_limit=step_limit, min_samples=500)
-        l = model.train_on_batch([batch, action, advantage], [reward]*3)
+        l = model.fit([batch, action, advantage], [reward]*3, verbose=0)
 #        logger.info("Loss: %s", l[0])
     pass
