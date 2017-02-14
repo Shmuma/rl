@@ -15,6 +15,7 @@ import gym, gym.wrappers
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda
 from keras.optimizers import Adagrad, RMSprop
+from keras.objectives import mean_squared_error
 from keras import backend as K
 
 HISTORY_STEPS = 1
@@ -163,7 +164,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("--eps", type=float, default=0.1, help="Ratio of random steps, default=0.2")
+    parser.add_argument("--eps", type=float, default=0.0, help="Ratio of random steps, default=0.2")
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count if iterations to take, default=100")
     args = parser.parse_args()
 
@@ -180,15 +181,15 @@ if __name__ == "__main__":
         # policy loss is already calculated, just return it
         'policy_loss': lambda y_true, y_pred: y_pred,
         # value loss is calculated against reversed reward
-        'value': 'mse',
+        'value': lambda y_true, y_pred: K.clip(mean_squared_error(y_true, y_pred), 0, 10),
         # policy result doesn't need to contribute to loss, just kill gradients
         'policy': lambda y_true, y_pred: y_true
     }
 
-    model.compile(optimizer=RMSprop(lr=0.001), loss=losses_dict)
+    model.compile(optimizer=Adagrad(), loss=losses_dict)
 
     # gradient check
-    if True:
+    if False:
         batch, action, advantage, reward = create_batch(0, env, model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
         r = model.predict_on_batch([batch, action, advantage])
         l = model.train_on_batch([batch, action, advantage], [reward]*3)
