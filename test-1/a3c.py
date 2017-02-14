@@ -55,8 +55,8 @@ def make_model(state_shape, n_actions, train_mode=True):
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(1e-6 + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
-        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
-        return -res_t - X_ENTROPY_BETA * x_entropy_t
+#        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
+        return -res_t# - X_ENTROPY_BETA * x_entropy_t
 
     loss_args = [policy_t, action_t, advantage_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
@@ -94,6 +94,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
     """
     samples = []
     rewards = []
+    values = []
 
     episodes_counter = 0
     while True:
@@ -110,6 +111,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
                 np.array([0.0])
             ])
             probs, value = probs[0], value[0][0]
+            values.append(value)
             if np.random.random() < eps:
                 action = np.random.randint(0, len(probs))
                 probs = np.ones_like(probs)
@@ -149,8 +151,9 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         elif len(samples) >= min_samples and episodes_counter >= num_episodes:
             break
 
-    logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f",
-                iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards))
+    logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f, mean value: %.3f",
+                iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
+                np.mean(values))
     # convert data to train format
     np.random.shuffle(samples)
     return list(map(np.array, zip(*samples)))
@@ -182,10 +185,10 @@ if __name__ == "__main__":
         'policy': lambda y_true, y_pred: y_true
     }
 
-    model.compile(optimizer=RMSprop(lr=0.0001), loss=losses_dict)
+    model.compile(optimizer=RMSprop(lr=0.001), loss=losses_dict)
 
     # gradient check
-    if False:
+    if True:
         batch, action, advantage, reward = create_batch(0, env, model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
         r = model.predict_on_batch([batch, action, advantage])
         l = model.train_on_batch([batch, action, advantage], [reward]*3)
