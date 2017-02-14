@@ -96,6 +96,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
     samples = []
     rewards = []
     values = []
+    advantages = []
 
     episodes_counter = 0
     while True:
@@ -143,6 +144,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         # generate samples from episode
         for reward, (state, probs, value, action) in zip(rev_rewards, reversed(episode)):
             advantage = reward - value
+            advantages.append(advantage)
             samples.append((state, action, advantage, reward))
         episodes_counter += 1
 
@@ -152,9 +154,10 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         elif len(samples) >= min_samples and episodes_counter >= num_episodes:
             break
 
-    logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f, mean value: %.3f",
+    logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f, "
+                "mean value: %.3f, max value: %.3f, mean adv: %.3f",
                 iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
-                np.mean(values))
+                np.mean(values), np.max(values), np.mean(advantages))
     # convert data to train format
     np.random.shuffle(samples)
     return list(map(np.array, zip(*samples)))
