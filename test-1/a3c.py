@@ -54,8 +54,8 @@ def make_model(state_shape, n_actions, train_mode=True):
         p_t, act_t, adv_t = args
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
-        p_oh_t = K.log(1e-6 + K.sum(oh_t * p_t, axis=-1, keepdims=True))
-        res_t = K.clip(adv_t, -1, np.inf) * p_oh_t
+        p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
+        res_t = adv_t * p_oh_t
 #        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
         return -res_t# - X_ENTROPY_BETA * x_entropy_t
 
@@ -114,6 +114,8 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
 
         # create reversed reward
         sum_reward = 0.0
+        if not done:
+            sum_reward = value
         rev_rewards = []
         for r in reversed(loc_rewards):
             sum_reward = sum_reward * gamma + r
