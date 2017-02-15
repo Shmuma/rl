@@ -143,7 +143,11 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
                 np.mean(values), np.max(values), np.mean(advantages))
     # convert data to train format
     np.random.shuffle(samples)
-    return list(map(np.array, zip(*samples)))
+
+    batch, action, reward, advantage = list(map(np.array, zip(*samples)))
+#    advantage -= np.mean(advantage)
+#    advantage /= np.std(advantage)
+    return batch, action, reward, advantage
 
 
 if __name__ == "__main__":
