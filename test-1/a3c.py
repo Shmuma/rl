@@ -44,46 +44,29 @@ def make_model(state_shape, n_actions, train_mode=True):
         return run_model
 
     # we're training, life is much more interesting...
-    reward_t = Input(batch_shape=(None, 1), name='sum_reward')
+#    reward_t = Input(batch_shape=(None, 1), name='sum_reward')
     action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
-#    advantage_t = Input(batch_shape=(None, 1), name="advantage")
+    advantage_t = Input(batch_shape=(None, 1), name="advantage")
 
     X_ENTROPY_BETA = 0.01
 
     def policy_loss_func(args):
-        p_t, act_t, rew_t, v_t = args
+        p_t, act_t, adv_t = args
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(1e-6 + K.sum(oh_t * p_t, axis=-1, keepdims=True))
-        res_t = (rew_t - K.stop_gradient(v_t)) * p_oh_t
+        res_t = K.clip(adv_t, -1, np.inf) * p_oh_t
 #        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
         return -res_t# - X_ENTROPY_BETA * x_entropy_t
 
-    loss_args = [policy_t, action_t, reward_t, value_t]
+    loss_args = [policy_t, action_t, advantage_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
-    return Model(input=[in_t, action_t, reward_t], output=[policy_t, value_t, policy_loss_t])
 
-    # value loss
-    # value_loss_t = merge([value_t, reward_t], mode=lambda vals: mean_squared_error(vals[0], vals[1]),
-    #                      output_shape=(1, ), name='value_loss')
-    # BETA = 0.01
-    # entropy_loss_t = Lambda(lambda p: BETA * K.sum(p * K.log(p)), output_shape=(1, ), name='entropy_loss')(policy_t)
+    value_model = Model(input=in_t, output=value_t)
+    policy_model = Model(input=[in_t, action_t, advantage_t], output=policy_loss_t)
 
-    # def policy_loss_func(args):
-    #     policy_t, action_t = args
-    #     oh = K.one_hot(action_t, nb_classes=n_actions)
-    #     oh = K.squeeze(oh, 1)
-    #     p = K.log(policy_t) * oh
-    #     p = K.sum(p, axis=-1, keepdims=True)
-    #     return p * K.stop_gradient(value_t - reward_t)
-    #
-    # policy_loss_t = merge([policy_t, action_t], mode=policy_loss_func,
-    #                       output_shape=(1, ), name='policy_loss')
-#    loss_t = merge([policy_loss_t, policy_loss_t], mode='ave', name='loss')
+    return run_model, value_model, policy_model
 
-    # policy_model = Model(input=in_t, output=policy_t)
-    # value_model = Model(input=in_t, output=value_t)
-    # return run_model, policy_model, value_model
 
 def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=1.0, eps=0.20, min_samples=None):
     """
@@ -107,10 +90,8 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         loc_rewards = []
         while True:
             # chose action to take
-            probs, value, loss = run_model.predict_on_batch([
+            probs, value = run_model.predict_on_batch([
                 np.array([state]),
-                np.array([0]),
-                np.array([0.0])
             ])
             probs, value = probs[0], value[0][0]
             values.append(value)
@@ -145,7 +126,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         for reward, (state, probs, value, action) in zip(rev_rewards, reversed(episode)):
             advantage = reward - value
             advantages.append(advantage)
-            samples.append((state, action, reward))
+            samples.append((state, action, reward, advantage))
         episodes_counter += 1
 
         if min_samples is None:
@@ -177,23 +158,15 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    model = make_model(state_shape, n_actions, train_mode=True)
-    model.summary()
+    run_model, value_model, policy_model = make_model(state_shape, n_actions, train_mode=True)
+    run_model.summary()
 
-    losses_dict = {
-        # policy loss is already calculated, just return it
-        'policy_loss': lambda y_true, y_pred: y_pred,
-        # value loss is calculated against reversed reward
-        'value': lambda y_true, y_pred: mean_squared_error(y_true, y_pred),
-        # policy result doesn't need to contribute to loss, just kill gradients
-        'policy': lambda y_true, y_pred: y_true
-    }
-
-    model.compile(optimizer=Adagrad(), loss=losses_dict)
+    value_model.compile(optimizer=Adagrad(), loss='mse')
+    policy_model.compile(optimizer=Adagrad(), loss=lambda y_true, y_pred: y_pred)
 
     # gradient check
     if False:
-        batch, action, advantage, reward = create_batch(0, env, model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
+        batch, action, advantage, reward = create_batch(0, env, run_model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
         r = model.predict_on_batch([batch, action, advantage])
         l = model.train_on_batch([batch, action, advantage], [reward]*3)
         r2 = model.predict_on_batch([batch, action, advantage])
@@ -204,8 +177,9 @@ if __name__ == "__main__":
         step_limit = None
 
     for iter in range(args.iters):
-        batch, action, reward = create_batch(iter, env, model, eps=args.eps, num_episodes=1,
+        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=args.eps, num_episodes=1,
                                                 steps_limit=step_limit, min_samples=500)
-        l = model.fit([batch, action, reward], [reward]*3, verbose=0)
-#        logger.info("Loss: %s", l[0])
+        l = value_model.fit(batch, reward, verbose=0)
+        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
+#        logger.info("Loss: %s", l)
     pass
