@@ -55,7 +55,7 @@ def make_model(state_shape, n_actions, train_mode=True):
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
-        res_t = adv_t * p_oh_t
+        res_t = 2.0 * K.sigmoid(adv_t) * p_oh_t
 #        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
         return -res_t# - X_ENTROPY_BETA * x_entropy_t
 
