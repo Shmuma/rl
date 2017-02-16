@@ -13,7 +13,7 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D
+from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape
 from keras.optimizers import Adagrad
 from keras import backend as K
 
@@ -31,13 +31,19 @@ def make_env(env_name, monitor_dir):
 
 def make_model(state_shape, n_actions, train_mode=True):
     in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
+    in_t = Permute(dims=(1, 4, 2, 3))(in_t)
+
+    channels = state_shape[-1]
+    res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
+    in_t = Reshape(target_shape=res_shape)(in_t)
+
     c1_t = Conv2D(64, 3, 3, activation='relu')(in_t)
     p1_t = MaxPooling2D((2, 2))(c1_t)
     c2_t = Conv2D(64, 3, 3, activation='relu')(p1_t)
     p2_t = MaxPooling2D((2, 2))(c2_t)
     c3_t = Conv2D(64, 3, 3, activation='relu')(p2_t)
     p3_t = MaxPooling2D((2, 2))(c3_t)
-    fl_t = Flatten(name='flat')(p2_t)
+    fl_t = Flatten(name='flat')(p3_t)
     l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
     l2_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
     policy_t = Dense(n_actions, activation='softmax', name='policy')(l2_t)
