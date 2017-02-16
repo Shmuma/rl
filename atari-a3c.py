@@ -162,6 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--eps", type=float, default=0.0, help="Ratio of random steps, default=0.2")
+    parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count if iterations to take, default=100")
     parser.add_argument("--limit", type=int, help="Limit count of steps in each episode, default=no limit")
     parser.add_argument("--episodes", type=int, default=1, help="Count of episodes to play")
@@ -178,10 +179,12 @@ if __name__ == "__main__":
 
     value_model.compile(optimizer=Adagrad(), loss='mse')
     policy_model.compile(optimizer=Adagrad(), loss=lambda y_true, y_pred: y_pred)
+    eps = args.eps
 
     for iter in range(args.iters):
-        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=args.eps, num_episodes=args.episodes,
+        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.episodes,
                                                 steps_limit=args.limit, min_samples=500)
         l = value_model.fit(batch, reward, verbose=0)
         l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
+        eps *= args.eps_decay
     pass
