@@ -31,13 +31,15 @@ def make_env(env_name, monitor_dir):
 
 def make_model(state_shape, n_actions, train_mode=True):
     in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-    in_t = Permute(dims=(1, 4, 2, 3))(in_t)
+    # bring together color channel (4-th dim) and history (1-st dim)
+    post_in_t = Permute(dims=(2, 3, 4, 1))(in_t)
 
     channels = state_shape[-1]
     res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
-    in_t = Reshape(target_shape=res_shape)(in_t)
+    # put color channel and history together
+    post_in_t = Reshape(target_shape=res_shape)(post_in_t)
 
-    c1_t = Conv2D(64, 3, 3, activation='relu')(in_t)
+    c1_t = Conv2D(64, 3, 3, activation='relu')(post_in_t)
     p1_t = MaxPooling2D((2, 2))(c1_t)
     c2_t = Conv2D(64, 3, 3, activation='relu')(p1_t)
     p2_t = MaxPooling2D((2, 2))(c2_t)
