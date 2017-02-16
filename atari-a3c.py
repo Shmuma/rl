@@ -13,7 +13,7 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape
+from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
 from keras.optimizers import Adagrad
 from keras import backend as K
 
@@ -38,14 +38,21 @@ def make_model(state_shape, n_actions, train_mode=True):
     res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
     # put color channel and history together
     post_in_t = Reshape(target_shape=res_shape)(post_in_t)
+    post_in_t = BatchNormalization()(post_in_t)
 
     c1_t = Conv2D(64, 3, 3, activation='relu')(post_in_t)
     p1_t = MaxPooling2D((2, 2))(c1_t)
     c2_t = Conv2D(64, 3, 3, activation='relu')(p1_t)
     p2_t = MaxPooling2D((2, 2))(c2_t)
+    p2_t = BatchNormalization()(p2_t)
     c3_t = Conv2D(64, 3, 3, activation='relu')(p2_t)
     p3_t = MaxPooling2D((2, 2))(c3_t)
-    fl_t = Flatten(name='flat')(p3_t)
+    c4_t = Conv2D(128, 1, 1, activation='relu')(p3_t)
+    p4_t = MaxPooling2D((2, 2))(c4_t)
+    p4_t = BatchNormalization()(p4_t)
+    c5_t = Conv2D(256, 1, 1, activation='relu')(p4_t)
+    p5_t = MaxPooling2D((2, 2))(c5_t)
+    fl_t = Flatten(name='flat')(p5_t)
     l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
     l2_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
     policy_t = Dense(n_actions, activation='softmax', name='policy')(l2_t)
@@ -149,8 +156,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
 
     logger.info("%d: eps=%.3f: got %d samples from %d episodes, mean final reward: %.3f, max: %.3f, "
                 "mean value: %.3f, max value: %.3f, mean adv: %.3f",
-                eps,
-                iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
+                iter_no, eps, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
                 np.mean(values), np.max(values), np.mean(advantages))
     # convert data to train format
     np.random.shuffle(samples)
@@ -185,7 +191,7 @@ if __name__ == "__main__":
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.episodes,
                                                 steps_limit=args.limit, min_samples=500)
-        l = value_model.fit(batch, reward, verbose=0)
-        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
+        l = value_model.fit(batch, reward, verbose=0, batch_size=128, nb_epoch=2)
+        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=128, nb_epoch=2)
         eps *= args.eps_decay
     pass
