@@ -147,8 +147,9 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         elif len(samples) >= min_samples and episodes_counter >= num_episodes:
             break
 
-    logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f, "
+    logger.info("%d: eps=%.3f: got %d samples from %d episodes, mean final reward: %.3f, max: %.3f, "
                 "mean value: %.3f, max value: %.3f, mean adv: %.3f",
+                eps,
                 iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
                 np.mean(values), np.max(values), np.mean(advantages))
     # convert data to train format
