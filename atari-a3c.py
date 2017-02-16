@@ -190,8 +190,8 @@ if __name__ == "__main__":
 
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.episodes,
-                                                steps_limit=args.limit, min_samples=500)
-        l = value_model.fit(batch, reward, verbose=0, batch_size=128, nb_epoch=2)
-        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=128, nb_epoch=2)
+                                                steps_limit=args.limit, min_samples=2000)
+        l = value_model.fit(batch, reward, verbose=0, batch_size=128, nb_epoch=10)
+        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=128, nb_epoch=10)
         eps *= args.eps_decay
     pass
