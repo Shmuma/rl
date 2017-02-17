@@ -40,21 +40,16 @@ def make_model(state_shape, n_actions, train_mode=True):
     post_in_t = Reshape(target_shape=res_shape)(post_in_t)
     post_in_t = BatchNormalization()(post_in_t)
 
-    c1_t = Conv2D(64, 3, 3, activation='relu')(post_in_t)
-    p1_t = MaxPooling2D((2, 2))(c1_t)
-    c2_t = Conv2D(64, 3, 3, activation='relu')(p1_t)
-    p2_t = MaxPooling2D((2, 2))(c2_t)
-    p2_t = BatchNormalization()(p2_t)
-    c3_t = Conv2D(64, 3, 3, activation='relu')(p2_t)
-    p3_t = MaxPooling2D((2, 2))(c3_t)
-    c4_t = Conv2D(128, 1, 1, activation='relu')(p3_t)
-    p4_t = MaxPooling2D((2, 2))(c4_t)
-    p4_t = BatchNormalization()(p4_t)
-    fl_t = Flatten(name='flat')(p4_t)
-    l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
-    l2_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
-    policy_t = Dense(n_actions, activation='softmax', name='policy')(l2_t)
-    value_t = Dense(1, name='value')(l2_t)
+    out_t = Conv2D(64, 3, 3, activation='relu')(post_in_t)
+    out_t = Conv2D(64, 3, 3, activation='relu')(out_t)
+    out_t = MaxPooling2D((3, 3))(out_t)
+    out_t = Conv2D(128, 2, 2, activation='relu')(out_t)
+    out_t = MaxPooling2D((3, 3))(out_t)
+    out_t = Flatten(name='flat')(out_t)
+    out_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(out_t)
+    out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(out_t)
+    policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
+    value_t = Dense(1, name='value')(out_t)
 
     # we're not going to train -- just return policy and value from our state
     run_model = Model(input=in_t, output=[policy_t, value_t])
@@ -189,7 +184,7 @@ if __name__ == "__main__":
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.episodes,
                                                 steps_limit=args.limit, min_samples=2000)
-        l = value_model.fit(batch, reward, verbose=0, batch_size=128, nb_epoch=10)
-        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=128, nb_epoch=10)
+        l = value_model.fit(batch, reward, verbose=0, batch_size=128, nb_epoch=3)
+        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=128, nb_epoch=3)
         eps *= args.eps_decay
     pass
