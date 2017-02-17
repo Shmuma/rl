@@ -166,6 +166,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count if iterations to take, default=100")
     parser.add_argument("--limit", type=int, help="Limit count of steps in each episode, default=no limit")
     parser.add_argument("--episodes", type=int, default=1, help="Count of episodes to play")
+    parser.add_argument("--gamma", type=float, default=1.0, help="Gamma for discount, default=1.0")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -183,7 +184,7 @@ if __name__ == "__main__":
 
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.episodes,
-                                                steps_limit=args.limit, min_samples=2000)
+                                                steps_limit=args.limit, min_samples=2000, gamma=args.gamma)
         l = value_model.fit(batch, reward, verbose=0, batch_size=128, nb_epoch=3)
         l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=128, nb_epoch=3)
         eps *= args.eps_decay
