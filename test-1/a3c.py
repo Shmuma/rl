@@ -102,7 +102,6 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
                 action = np.random.choice(len(probs), p=probs)
             next_state, reward, done, _ = env.step(action)
             episode.append((state, value, action, reward))
-            loc_rewards.append(reward)
             sum_reward = reward + gamma * sum_reward
             state = next_state
             step += 1
