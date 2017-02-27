@@ -2,7 +2,6 @@
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
 import argparse
 import logging
-
 import numpy as np
 
 from rl_lib.wrappers import HistoryWrapper
@@ -55,7 +54,7 @@ def make_model(state_shape, n_actions, train_mode=True):
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
-        res_t = 2.0 * K.sigmoid(adv_t) * p_oh_t
+        res_t = adv_t * p_oh_t
 #        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
         return -res_t# - X_ENTROPY_BETA * x_entropy_t
 
@@ -102,7 +101,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
             else:
                 action = np.random.choice(len(probs), p=probs)
             next_state, reward, done, _ = env.step(action)
-            episode.append((state, probs, value, action))
+            episode.append((state, value, action, reward))
             loc_rewards.append(reward)
             sum_reward = reward + gamma * sum_reward
             state = next_state
@@ -112,23 +111,16 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
                 rewards.append(sum_reward)
                 break
 
-        # create reversed reward
-        sum_reward = 0.0
-        if not done:
-            sum_reward = value
-        rev_rewards = []
-        for r in reversed(loc_rewards):
-            sum_reward = sum_reward * gamma + r
-            rev_rewards.append(sum_reward)
-        # rev_rewards = np.copy(rev_rewards)
-        # rev_rewards -= np.mean(rev_rewards)
-        # rev_rewards /= np.std(rev_rewards)
-
         # generate samples from episode
-        for reward, (state, probs, value, action) in zip(rev_rewards, reversed(episode)):
-            advantage = reward - value
+        for idx, (state, value, action, reward) in enumerate(episode):
+            sum_reward = reward
+            if idx < len(episode)-1:
+                next_value = episode[idx+1][1]  # TODO: convert this ugliness into namedtuple
+                sum_reward += gamma * next_value
+            advantage = sum_reward - value
             advantages.append(advantage)
-            samples.append((state, action, reward, advantage))
+            samples.append((state, action, sum_reward, advantage))
+
         episodes_counter += 1
 
         if min_samples is None:
@@ -144,18 +136,16 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
     # convert data to train format
     np.random.shuffle(samples)
 
-    batch, action, reward, advantage = list(map(np.array, zip(*samples)))
-#    advantage -= np.mean(advantage)
-#    advantage /= np.std(advantage)
-    return batch, action, reward, advantage
+    batch, action, sum_reward, advantage = list(map(np.array, zip(*samples)))
+    return batch, action, sum_reward, advantage
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("--eps", type=float, default=0.0, help="Ratio of random steps, default=0.2")
-    parser.add_argument("-i", "--iters", type=int, default=100, help="Count if iterations to take, default=100")
+    parser.add_argument("--eps", type=float, default=0.2, help="Ratio of random steps, default=0.2")
+    parser.add_argument("-i", "--iters", type=int, default=100, help="Count of iterations to take, default=100")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -183,7 +173,7 @@ if __name__ == "__main__":
         step_limit = None
 
     for iter in range(args.iters):
-        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=args.eps, num_episodes=1,
+        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=args.eps, num_episodes=10,
                                                 steps_limit=step_limit, min_samples=500)
         l = value_model.fit(batch, reward, verbose=0)
         l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
