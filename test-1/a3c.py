@@ -114,7 +114,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         for idx, (state, value, action, reward) in enumerate(episode):
             sum_reward = reward
             if idx < len(episode)-1:
-                next_value = episode[idx+1][1]  # TODO: convert this ugliness into namedtuple
+                next_value = episode[idx+1][1]
                 sum_reward += gamma * next_value
             advantage = sum_reward - value
             advantages.append(advantage)
