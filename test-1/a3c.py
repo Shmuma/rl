@@ -140,9 +140,9 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
             break
 
     logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f, "
-                "mean value: %.3f, max value: %.3f, mean adv: %.3f",
+                "mean value: %.3f, max value: %.3f, mean adv: %.3f, eps=%f",
                 iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
-                np.mean(values), np.max(values), np.mean(advantages))
+                np.mean(values), np.max(values), np.mean(advantages), eps)
     # convert data to train format
     np.random.shuffle(samples)
 
@@ -160,6 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--steps", type=int, default=10, help="Count of steps to use in reward estimation")
     parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
     parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
+    parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -185,7 +186,8 @@ if __name__ == "__main__":
     eps = args.eps
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
-                                                min_samples=args.min_samples, n_steps=args.steps)
+                                                        steps_limit=args.max_steps, min_samples=args.min_samples,
+                                                        n_steps=args.steps)
         l = value_model.fit(batch, reward, verbose=0)
         l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
         eps *= args.eps_decay
