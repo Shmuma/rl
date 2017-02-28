@@ -67,7 +67,8 @@ def make_model(state_shape, n_actions, train_mode=True):
     return run_model, value_model, policy_model
 
 
-def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=1.0, eps=0.20, min_samples=None):
+def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
+                 gamma=1.0, eps=0.20, min_samples=None, n_steps=10):
     """
     Play given amount of episodes and prepare data to train on
     :param env: Environment instance
@@ -85,8 +86,10 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
         state = env.reset()
         step = 0
         sum_reward = 0.0
+        # list of episode steps (state, action)
         episode = []
-        loc_rewards = []
+        # list of tuples (reward, value)
+        reward_value = []
         while True:
             # chose action to take
             probs, value = run_model.predict_on_batch([
@@ -101,7 +104,8 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
             else:
                 action = np.random.choice(len(probs), p=probs)
             next_state, reward, done, _ = env.step(action)
-            episode.append((state, value, action, reward))
+            episode.append((state, action))
+            reward_value.append((reward, value))
             sum_reward = reward + gamma * sum_reward
             state = next_state
             step += 1
@@ -111,12 +115,19 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=1000, gamma=
                 break
 
         # generate samples from episode
-        for idx, (state, value, action, reward) in enumerate(episode):
-            sum_reward = reward
-            if idx < len(episode)-1:
-                next_value = episode[idx+1][1]
-                sum_reward += gamma * next_value
-            advantage = sum_reward - value
+        for idx, (state, action) in enumerate(episode):
+            # calculate discounted reward and advantage for this step
+            reward_value_window = reward_value[idx:idx+n_steps+1]
+            if len(reward_value_window) > n_steps:
+                last_value = reward_value_window.pop()[1]
+            else:
+                last_value = 0
+
+            sum_reward = last_value
+            for reward, _ in reversed(reward_value_window):
+                sum_reward = sum_reward * gamma + reward
+
+            advantage = sum_reward - reward_value[idx][1]
             advantages.append(advantage)
             samples.append((state, action, sum_reward, advantage))
 
@@ -144,7 +155,11 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--eps", type=float, default=0.2, help="Ratio of random steps, default=0.2")
+    parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count of iterations to take, default=100")
+    parser.add_argument("-n", "--steps", type=int, default=10, help="Count of steps to use in reward estimation")
+    parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
+    parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -160,21 +175,19 @@ if __name__ == "__main__":
     policy_model.compile(optimizer=Adagrad(), loss=lambda y_true, y_pred: y_pred)
 
     # gradient check
-    if False:
-        batch, action, advantage, reward = create_batch(0, env, run_model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
-        r = model.predict_on_batch([batch, action, advantage])
-        l = model.train_on_batch([batch, action, advantage], [reward]*3)
-        r2 = model.predict_on_batch([batch, action, advantage])
-        logger.info("Test fit, mean loss: %s -> %s", np.mean(r[2]), np.mean(r2[2]))
+    # if False:
+    #     batch, action, advantage, reward = create_batch(0, env, run_model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
+    #     r = model.predict_on_batch([batch, action, advantage])
+    #     l = model.train_on_batch([batch, action, advantage], [reward]*3)
+    #     r2 = model.predict_on_batch([batch, action, advantage])
+    #     logger.info("Test fit, mean loss: %s -> %s", np.mean(r[2]), np.mean(r2[2]))
 
-    step_limit = 500
-    if args.monitor is not None:
-        step_limit = None
-
+    eps = args.eps
     for iter in range(args.iters):
-        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=args.eps, num_episodes=10,
-                                                steps_limit=step_limit, min_samples=500)
+        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
+                                                min_samples=args.min_samples, n_steps=args.steps)
         l = value_model.fit(batch, reward, verbose=0)
         l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
+        eps *= args.eps_decay
 #        logger.info("Loss: %s", l)
     pass
