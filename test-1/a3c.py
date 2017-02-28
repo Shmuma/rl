@@ -12,12 +12,11 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda
-from keras.optimizers import Adagrad, RMSprop
-from keras.objectives import mean_squared_error
+from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
+from keras.optimizers import Adagrad
 from keras import backend as K
 
-HISTORY_STEPS = 1
+HISTORY_STEPS = 2
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
@@ -29,13 +28,9 @@ def make_env(env_name, monitor_dir):
     return env
 
 
-def make_model(state_shape, n_actions, train_mode=True):
-    in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-    fl_t = Flatten(name='flat')(in_t)
-    l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
-    l2_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
-    policy_t = Dense(n_actions, activation='softmax', name='policy')(l2_t)
-    value_t = Dense(1, name='value')(l2_t)
+def make_model(in_t, out_t, n_actions, train_mode=True):
+    policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
+    value_t = Dense(1, name='value')(out_t)
 
     # we're not going to train -- just return policy and value from our state
     run_model = Model(input=in_t, output=[policy_t, value_t])
@@ -161,6 +156,7 @@ if __name__ == "__main__":
     parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
     parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
     parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
+    parser.add_argument("--net", choices=('shallow', 'atari'), default='shallow', help="Type of net to use. default=shallow")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -169,19 +165,36 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    run_model, value_model, policy_model = make_model(state_shape, n_actions, train_mode=True)
+    if args.net == 'shallow':
+        in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
+        fl_t = Flatten(name='flat')(in_t)
+        l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
+        out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
+    else:
+        in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
+        # bring together color channel (4-th dim) and history (1-st dim)
+        post_in_t = Permute(dims=(2, 3, 4, 1))(in_t)
+
+        channels = state_shape[-1]
+        res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
+        # put color channel and history together
+        post_in_t = Reshape(target_shape=res_shape)(post_in_t)
+        post_in_t = BatchNormalization()(post_in_t)
+
+        out_t = Conv2D(64, 3, 3, activation='relu')(post_in_t)
+        out_t = Conv2D(64, 3, 3, activation='relu')(out_t)
+        out_t = MaxPooling2D((3, 3))(out_t)
+        out_t = Conv2D(128, 2, 2, activation='relu')(out_t)
+        out_t = MaxPooling2D((3, 3))(out_t)
+        out_t = Flatten(name='flat')(out_t)
+        out_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(out_t)
+        out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(out_t)
+
+    run_model, value_model, policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
     run_model.summary()
 
     value_model.compile(optimizer=Adagrad(), loss='mse')
     policy_model.compile(optimizer=Adagrad(), loss=lambda y_true, y_pred: y_pred)
-
-    # gradient check
-    # if False:
-    #     batch, action, advantage, reward = create_batch(0, env, run_model, eps=0.0, num_episodes=1, steps_limit=10, min_samples=None)
-    #     r = model.predict_on_batch([batch, action, advantage])
-    #     l = model.train_on_batch([batch, action, advantage], [reward]*3)
-    #     r2 = model.predict_on_batch([batch, action, advantage])
-    #     logger.info("Test fit, mean loss: %s -> %s", np.mean(r[2]), np.mean(r2[2]))
 
     eps = args.eps
     for iter in range(args.iters):
