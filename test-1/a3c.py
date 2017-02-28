@@ -149,6 +149,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
+    parser.add_argument("--gamma", type=float, default=1.0, help="Gamma for reward discount, default=1.0")
     parser.add_argument("--eps", type=float, default=0.2, help="Ratio of random steps, default=0.2")
     parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count of iterations to take, default=100")
@@ -200,7 +201,7 @@ if __name__ == "__main__":
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
                                                         steps_limit=args.max_steps, min_samples=args.min_samples,
-                                                        n_steps=args.steps)
+                                                        n_steps=args.steps, gamma=args.gamma)
         l = value_model.fit(batch, reward, verbose=0)
         l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
         eps *= args.eps_decay
