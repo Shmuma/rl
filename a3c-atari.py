@@ -95,7 +95,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
         while True:
             # chose action to take
             probs, value = run_model.predict_on_batch([
-                np.array([state]),
+                np.array([preprocess(state)]),
             ])
             probs, value = probs[0], value[0][0]
             values.append(value)
