@@ -22,7 +22,8 @@ HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-IMAGE_SHAPE = (100, 80, 3)
+IMAGE_SIZE = (100, 80)
+IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -65,7 +66,10 @@ def make_model(in_t, out_t, n_actions, train_mode=True):
 
 
 def preprocess(state):
-    res = cv2.resize(state, IMAGE_SHAPE)
+    state = np.transpose(state, (1, 2, 3, 0))
+    state = np.reshape(state, (state.shape[0], state.shape[1], state.shape[2]*state.shape[3]))
+
+    res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
     return res / 255.0
 
 
@@ -172,18 +176,8 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    state_shape = IMAGE_SHAPE
-
-    in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-    # bring together color channel (4-th dim) and history (1-st dim)
-    post_in_t = Permute(dims=(2, 3, 4, 1))(in_t)
-
-    channels = state_shape[-1]
-    res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
-    # put color channel and history together
-    post_in_t = Reshape(target_shape=res_shape)(post_in_t)
-
-    out_t = Conv2D(32, 5, 5, activation='relu')(post_in_t)
+    in_t = Input(shape=IMAGE_SHAPE, name='input')
+    out_t = Conv2D(32, 5, 5, activation='relu')(in_t)
     out_t = MaxPooling2D((2, 2))(out_t)
     out_t = Conv2D(32, 5, 5, activation='relu')(out_t)
     out_t = MaxPooling2D((2, 2))(out_t)
