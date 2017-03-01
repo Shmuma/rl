@@ -25,6 +25,8 @@ SIMPLE_L2_SIZE = 50
 IMAGE_SIZE = (100, 80)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
+BATCH_SIZE = 512
+
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
     if monitor_dir:
@@ -198,8 +200,8 @@ if __name__ == "__main__":
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
                                                         steps_limit=args.max_steps, min_samples=args.min_samples,
                                                         n_steps=args.steps, gamma=args.gamma)
-        l = value_model.fit(batch, reward, verbose=0)
-        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0)
+        l = value_model.fit(batch, reward, verbose=0, batch_size=BATCH_SIZE)
+        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=BATCH_SIZE)
         eps *= args.eps_decay
 #        logger.info("Loss: %s", l)
     pass
