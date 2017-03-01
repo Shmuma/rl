@@ -22,7 +22,7 @@ HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-IMAGE_SHAPE = (100, 80)
+IMAGE_SHAPE = (100, 80, 3)
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    state_shape = IMAGE_SHAPE + (state_shape[2],)
+    state_shape = IMAGE_SHAPE
 
     in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
     # bring together color channel (4-th dim) and history (1-st dim)
