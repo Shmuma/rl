@@ -16,10 +16,13 @@ from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Pe
 from keras.optimizers import Adagrad
 from keras import backend as K
 
+import cv2
+
 HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
+IMAGE_SHAPE = (100, 80)
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -59,6 +62,11 @@ def make_model(in_t, out_t, n_actions, train_mode=True):
     policy_model = Model(input=[in_t, action_t, advantage_t], output=policy_loss_t)
 
     return run_model, value_model, policy_model
+
+
+def preprocess(state):
+    res = cv2.resize(state, IMAGE_SHAPE)
+    return res / 255.0
 
 
 def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
@@ -123,7 +131,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
 
             advantage = sum_reward - reward_value[idx][1]
             advantages.append(advantage)
-            samples.append((state, action, sum_reward, advantage))
+            samples.append((preprocess(state), action, sum_reward, advantage))
 
         episodes_counter += 1
 
@@ -156,7 +164,6 @@ if __name__ == "__main__":
     parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
     parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
     parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
-    parser.add_argument("--net", choices=('shallow', 'atari'), default='shallow', help="Type of net to use. default=shallow")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -165,30 +172,26 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    if args.net == 'shallow':
-        in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-        fl_t = Flatten(name='flat')(in_t)
-        l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
-        out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
-    else:
-        in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-        # bring together color channel (4-th dim) and history (1-st dim)
-        post_in_t = Permute(dims=(2, 3, 4, 1))(in_t)
+    state_shape = IMAGE_SHAPE + (state_shape[2],)
 
-        channels = state_shape[-1]
-        res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
-        # put color channel and history together
-        post_in_t = Reshape(target_shape=res_shape)(post_in_t)
+    in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
+    # bring together color channel (4-th dim) and history (1-st dim)
+    post_in_t = Permute(dims=(2, 3, 4, 1))(in_t)
 
-        out_t = Conv2D(32, 5, 5, activation='relu')(post_in_t)
-        out_t = MaxPooling2D((2, 2))(out_t)
-        out_t = Conv2D(32, 5, 5, activation='relu')(out_t)
-        out_t = MaxPooling2D((2, 2))(out_t)
-        out_t = Conv2D(64, 4, 4, activation='relu')(out_t)
-        out_t = MaxPooling2D((2, 2))(out_t)
-        out_t = Conv2D(64, 3, 3, activation='relu')(out_t)
-        out_t = Flatten(name='flat')(out_t)
-        out_t = Dense(512, name='l1')(out_t)
+    channels = state_shape[-1]
+    res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
+    # put color channel and history together
+    post_in_t = Reshape(target_shape=res_shape)(post_in_t)
+
+    out_t = Conv2D(32, 5, 5, activation='relu')(post_in_t)
+    out_t = MaxPooling2D((2, 2))(out_t)
+    out_t = Conv2D(32, 5, 5, activation='relu')(out_t)
+    out_t = MaxPooling2D((2, 2))(out_t)
+    out_t = Conv2D(64, 4, 4, activation='relu')(out_t)
+    out_t = MaxPooling2D((2, 2))(out_t)
+    out_t = Conv2D(64, 3, 3, activation='relu')(out_t)
+    out_t = Flatten(name='flat')(out_t)
+    out_t = Dense(512, name='l1')(out_t)
 
     run_model, value_model, policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
     run_model.summary()
