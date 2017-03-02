@@ -50,8 +50,10 @@ def make_model(in_t, out_t, n_actions, train_mode=True):
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
-#        x_entropy_t = K.sum(p_t * K.log(1e-6 + p_t), axis=-1, keepdims=True)
-        return -res_t# - X_ENTROPY_BETA * x_entropy_t
+        x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
+        print(x_entropy_t)
+        print(res_t)
+        return -res_t + X_ENTROPY_BETA * x_entropy_t
 
     loss_args = [policy_t, action_t, advantage_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
