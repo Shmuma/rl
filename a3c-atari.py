@@ -13,7 +13,7 @@ import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
-from keras.optimizers import Adagrad
+from keras.optimizers import Adam
 from keras import backend as K
 
 import cv2
@@ -192,8 +192,8 @@ if __name__ == "__main__":
     run_model, value_model, policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
     run_model.summary()
 
-    value_model.compile(optimizer=Adagrad(), loss='mse')
-    policy_model.compile(optimizer=Adagrad(), loss=lambda y_true, y_pred: y_pred)
+    value_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss='mse')
+    policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=lambda y_true, y_pred: y_pred)
 
     eps = args.eps
     for iter in range(args.iters):
