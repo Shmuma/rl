@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
+import os
 import argparse
 import logging
 import numpy as np
@@ -15,17 +16,18 @@ from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
 from keras.optimizers import Adam
 from keras import backend as K
+from keras.callbacks import TensorBoard
 
 import cv2
 
-HISTORY_STEPS = 4
+HISTORY_STEPS = 1
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-IMAGE_SIZE = (100, 80)
+IMAGE_SIZE = (210, 160)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
-BATCH_SIZE = 512
+BATCH_SIZE = 128
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -160,13 +162,14 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--name", required=True, help="Run name")
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=1.0, help="Gamma for reward discount, default=1.0")
     parser.add_argument("--eps", type=float, default=0.2, help="Ratio of random steps, default=0.2")
     parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=100, help="Count of iterations to take, default=100")
-    parser.add_argument("-n", "--steps", type=int, default=10, help="Count of steps to use in reward estimation")
+    parser.add_argument("--steps", type=int, default=10, help="Count of steps to use in reward estimation")
     parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
     parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
     parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
@@ -195,13 +198,18 @@ if __name__ == "__main__":
     value_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss='mse')
     policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=lambda y_true, y_pred: y_pred)
 
+    callbacks = [
+        TensorBoard(os.path.join("logs", args.name), write_graph=False)
+    ]
+
     eps = args.eps
     for iter in range(args.iters):
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
                                                         steps_limit=args.max_steps, min_samples=args.min_samples,
                                                         n_steps=args.steps, gamma=args.gamma)
-        l = value_model.fit(batch, reward, verbose=0, batch_size=BATCH_SIZE)
-        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0, batch_size=BATCH_SIZE)
+        l = value_model.fit(batch, reward, verbose=0, batch_size=BATCH_SIZE, callbacks=callbacks)
+        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0,
+                             batch_size=BATCH_SIZE, callbacks=callbacks)
         eps *= args.eps_decay
 #        logger.info("Loss: %s", l)
     pass
