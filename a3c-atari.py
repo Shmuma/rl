@@ -20,11 +20,11 @@ from keras.callbacks import TensorBoard
 
 import cv2
 
-HISTORY_STEPS = 1
+HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-IMAGE_SIZE = (210, 160)
+IMAGE_SIZE = (80, 80)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
 BATCH_SIZE = 128
@@ -71,8 +71,11 @@ def preprocess(state):
     state = np.transpose(state, (1, 2, 3, 0))
     state = np.reshape(state, (state.shape[0], state.shape[1], state.shape[2]*state.shape[3]))
 
+    state = state.astype(np.float32)
     res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
-    return res / 255.0
+    res -= 128
+    res /= 128
+    return res
 
 
 def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
