@@ -183,13 +183,13 @@ if __name__ == "__main__":
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
     in_t = Input(shape=IMAGE_SHAPE, name='input')
-    out_t = Conv2D(32, 5, 5, activation='relu')(in_t)
+    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(in_t)
     out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(32, 5, 5, activation='relu')(out_t)
+    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(out_t)
     out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(64, 4, 4, activation='relu')(out_t)
+    out_t = Conv2D(64, 4, 4, activation='relu', border_mode='same')(out_t)
     out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(64, 3, 3, activation='relu')(out_t)
+    out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
     out_t = Flatten(name='flat')(out_t)
     out_t = Dense(512, name='l1')(out_t)
 
