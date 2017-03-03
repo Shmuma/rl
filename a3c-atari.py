@@ -14,7 +14,7 @@ import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
-from keras.optimizers import Adam
+from keras.optimizers import Adam, Adagrad
 from keras import backend as K
 from keras.callbacks import TensorBoard
 
@@ -63,10 +63,8 @@ def make_model(in_t, out_t, n_actions, train_mode=True):
     loss_args = [policy_t, action_t, advantage_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
 
-    value_model = Model(input=in_t, output=value_t)
-    policy_model = Model(input=[in_t, action_t, advantage_t], output=policy_loss_t)
-
-    return run_model, value_model, policy_model
+    value_policy_model = Model(input=[in_t, action_t, advantage_t], output=[value_t, policy_loss_t])
+    return run_model, value_policy_model
 
 
 def preprocess(state):
@@ -192,14 +190,18 @@ if __name__ == "__main__":
     out_t = Flatten(name='flat')(out_t)
     out_t = Dense(512, name='l1')(out_t)
 
-    run_model, value_model, policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
-    run_model.summary()
+    run_model, value_policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
+    value_policy_model.summary()
 
-    value_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss='mse')
-    policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=lambda y_true, y_pred: y_pred)
+    loss_dict = {
+        'value': 'mse',
+        'policy_loss': lambda y_true, y_pred: y_pred
+    }
+
+    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
     callbacks = [
-        TensorBoard(os.path.join("logs", args.name), write_graph=False)
+#        TensorBoard(os.path.join("logs", args.name), write_graph=False)
     ]
 
     eps = args.eps
@@ -207,9 +209,8 @@ if __name__ == "__main__":
         batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
                                                         steps_limit=args.max_steps, min_samples=args.min_samples,
                                                         n_steps=args.steps, gamma=args.gamma)
-        l = value_model.fit(batch, reward, verbose=0, batch_size=BATCH_SIZE, callbacks=callbacks)
-        l = policy_model.fit([batch, action, advantage], np.zeros_like(reward), verbose=0,
-                             batch_size=BATCH_SIZE, callbacks=callbacks)
+        l = value_policy_model.fit([batch, action, advantage], [reward, reward], verbose=0,
+                                   batch_size=BATCH_SIZE, callbacks=callbacks)
         eps *= args.eps_decay
 #        logger.info("Loss: %s", l)
     pass
