@@ -191,7 +191,7 @@ if __name__ == "__main__":
     out_t = MaxPooling2D((2, 2))(out_t)
     out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
     out_t = Flatten(name='flat')(out_t)
-    out_t = Dense(512, name='l1')(out_t)
+    out_t = Dense(512, name='l1', activation='relu')(out_t)
 
     run_model, value_policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
     value_policy_model.summary()
