@@ -167,13 +167,13 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=1.0, help="Gamma for reward discount, default=1.0")
-    parser.add_argument("--eps", type=float, default=0.2, help="Ratio of random steps, default=0.2")
+    parser.add_argument("--eps", type=float, default=0.0, help="Ratio of random steps, default=0.0")
     parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
-    parser.add_argument("-i", "--iters", type=int, default=100, help="Count of iterations to take, default=100")
+    parser.add_argument("-i", "--iters", type=int, default=10000, help="Count of iterations to take, default=100")
     parser.add_argument("--steps", type=int, default=10, help="Count of steps to use in reward estimation")
-    parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
-    parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
-    parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
+    parser.add_argument("--min-episodes", type=int, default=10, help="Minimum amount of episodes to play, default=10")
+    parser.add_argument("--min-samples", type=int, default=60000, help="Minimum amount of learning samples to generate, default=60000")
+    parser.add_argument("--max-steps", type=int, default=6000, help="Maximum count of steps per episode, default=6000")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -213,7 +213,7 @@ if __name__ == "__main__":
                                                         steps_limit=args.max_steps, min_samples=args.min_samples,
                                                         n_steps=args.steps, gamma=args.gamma)
         l = value_policy_model.fit([batch, action, advantage], [reward, reward], verbose=0,
-                                   batch_size=BATCH_SIZE, callbacks=callbacks)
+                                   batch_size=BATCH_SIZE, callbacks=callbacks, nb_epoch=1)
         eps *= args.eps_decay
 #        logger.info("Loss: %s", l)
     pass
