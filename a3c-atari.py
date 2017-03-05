@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
-import os
+import sys
 import argparse
 import logging
 import numpy as np
@@ -161,6 +161,77 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
     return batch, action, sum_reward, advantage
 
 
+class Player:
+    def __init__(self, env, model, reward_steps, gamma):
+        self.env = env
+        self.model = model
+        self.reward_steps = reward_steps
+        self.gamma = gamma
+        self.state = env.reset()
+        self.memory = []
+        self.episode_reward = 0.0
+
+    def play(self, steps):
+        result = []
+
+        for _ in range(steps):
+            pr_state = preprocess(self.state)
+            probs, value = run_model.predict_on_batch([
+                np.array([pr_state]),
+            ])
+            probs, value = probs[0], value[0][0]
+            # take action
+            action = np.random.choice(len(probs), p=probs)
+            self.state, reward, done, _ = env.step(action)
+
+            self.episode_reward += reward
+            self.memory.append((pr_state, action, reward, value))
+            if done:
+                self.state = env.reset()
+                logging.info("Episode done: sum reward %f", self.episode_reward)
+                self.episode_reward = 0.0
+                result.extend(self._memory_to_samples(is_done=True))
+                break
+            elif len(self.memory) == self.reward_steps + 1:
+                result.extend(self._memory_to_samples(is_done=False))
+
+        return result
+
+    def _memory_to_samples(self, is_done):
+        """
+        From existing memory, generate samples
+        :param is_done: is episode done
+        :return: list of training samples
+        """
+        result = []
+        R, last_item = 0.0, None
+
+        if not is_done:
+            last_item = self.memory.pop()
+            R = last_item[-1]
+
+        for state, action, reward, value in reversed(self.memory):
+            R = reward + R * self.gamma
+            advantage = R - value
+            result.append((state, action, R, advantage))
+
+        self.memory = [] if is_done else [last_item]
+        return result
+
+
+def generate_batches(players, batch_size):
+    samples = []
+
+    while True:
+        for player in players:
+            samples.extend(player.play(10))
+        if len(samples) >= batch_size:
+            states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
+            yield [states, actions, advantages], [rewards, rewards]
+            samples = samples[batch_size:]
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--name", required=True, help="Run name")
@@ -203,17 +274,9 @@ if __name__ == "__main__":
 
     value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
-    callbacks = [
-#        TensorBoard(os.path.join("logs", args.name), write_graph=False)
-    ]
+    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma) for _ in range(10)]
 
-    eps = args.eps
-    for iter in range(args.iters):
-        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
-                                                        steps_limit=args.max_steps, min_samples=args.min_samples,
-                                                        n_steps=args.steps, gamma=args.gamma)
-        l = value_policy_model.fit([batch, action, advantage], [reward, reward], verbose=0,
-                                   batch_size=BATCH_SIZE, callbacks=callbacks, nb_epoch=1)
-        eps *= args.eps_decay
-#        logger.info("Loss: %s", l)
-    pass
+    for x_batch, y_batch in generate_batches(players, BATCH_SIZE):
+        l = value_policy_model.train_on_batch(x_batch, y_batch)
+#        print(l)
+    sys.exit(0)
