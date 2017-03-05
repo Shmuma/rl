@@ -166,7 +166,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--name", required=True, help="Run name")
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("--gamma", type=float, default=1.0, help="Gamma for reward discount, default=1.0")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=1.0")
     parser.add_argument("--eps", type=float, default=0.0, help="Ratio of random steps, default=0.0")
     parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=10000, help="Count of iterations to take, default=100")
