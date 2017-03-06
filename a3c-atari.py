@@ -289,7 +289,7 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
-    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=loss_dict)
 
     players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
                       max_steps=1000, player_index=idx)
