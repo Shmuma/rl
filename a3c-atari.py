@@ -21,8 +21,6 @@ import cv2
 
 PLAYERS_COUNT = 50
 HISTORY_STEPS = 4
-SIMPLE_L1_SIZE = 50
-SIMPLE_L2_SIZE = 50
 
 #IMAGE_SIZE = (210, 160)
 IMAGE_SIZE = (84, 84)
@@ -77,89 +75,6 @@ def preprocess(state):
     res -= 128
     res /= 128
     return res
-
-
-def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
-                 gamma=1.0, eps=0.20, min_samples=None, n_steps=10):
-    """
-    Play given amount of episodes and prepare data to train on
-    :param env: Environment instance
-    :param run_model: Model to take actions
-    :param num_episodes: count of episodes to run
-    :return: batch in format required by model
-    """
-    samples = []
-    rewards = []
-    values = []
-    advantages = []
-
-    episodes_counter = 0
-    while True:
-        state = env.reset()
-        step = 0
-        sum_reward = 0.0
-        # list of episode steps (state, action)
-        episode = []
-        # list of tuples (reward, value)
-        reward_value = []
-        while True:
-            # chose action to take
-            probs, value = run_model.predict_on_batch([
-                np.array([preprocess(state)]),
-            ])
-            probs, value = probs[0], value[0][0]
-            values.append(value)
-            if np.random.random() < eps:
-                action = np.random.randint(0, len(probs))
-                probs = np.ones_like(probs)
-                probs /= np.sum(probs)
-            else:
-                action = np.random.choice(len(probs), p=probs)
-            next_state, reward, done, _ = env.step(action)
-            episode.append((state, action))
-            reward_value.append((reward, value))
-            sum_reward = reward + gamma * sum_reward
-            state = next_state
-            step += 1
-
-            if done or (steps_limit is not None and steps_limit == step):
-                rewards.append(sum_reward)
-                break
-
-        # generate samples from episode
-        for idx, (state, action) in enumerate(episode):
-            # calculate discounted reward and advantage for this step
-            reward_value_window = reward_value[idx:idx+n_steps+1]
-            if len(reward_value_window) > n_steps:
-                last_value = reward_value_window.pop()[1]
-            else:
-                last_value = 0
-
-            sum_reward = last_value
-            for reward, _ in reversed(reward_value_window):
-                sum_reward = sum_reward * gamma + reward
-
-            advantage = sum_reward - reward_value[idx][1]
-            advantages.append(advantage)
-            samples.append((preprocess(state), action, sum_reward, advantage))
-
-        episodes_counter += 1
-
-        if min_samples is None:
-            if episodes_counter == num_episodes:
-                break
-        elif len(samples) >= min_samples and episodes_counter >= num_episodes:
-            break
-
-    logger.info("%d: Have %d samples from %d episodes, mean final reward: %.3f, max: %.3f, "
-                "mean value: %.3f, max value: %.3f, mean adv: %.3f, eps=%f",
-                iter_no, len(samples), episodes_counter, np.mean(rewards), np.max(rewards),
-                np.mean(values), np.max(values), np.mean(advantages), eps)
-    # convert data to train format
-    np.random.shuffle(samples)
-
-    batch, action, sum_reward, advantage = list(map(np.array, zip(*samples)))
-    return batch, action, sum_reward, advantage
 
 
 image_index = {}
@@ -255,13 +170,8 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=1.0")
-    parser.add_argument("--eps", type=float, default=0.0, help="Ratio of random steps, default=0.0")
-    parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=10000, help="Count of iterations to take, default=100")
     parser.add_argument("--steps", type=int, default=10, help="Count of steps to use in reward estimation")
-    parser.add_argument("--min-episodes", type=int, default=10, help="Minimum amount of episodes to play, default=10")
-    parser.add_argument("--min-samples", type=int, default=60000, help="Minimum amount of learning samples to generate, default=60000")
-    parser.add_argument("--max-steps", type=int, default=6000, help="Maximum count of steps per episode, default=6000")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -292,7 +202,7 @@ if __name__ == "__main__":
     value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=loss_dict)
 
     players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
-                      max_steps=1000, player_index=idx)
+                      max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
