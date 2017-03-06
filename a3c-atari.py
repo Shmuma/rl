@@ -24,7 +24,8 @@ HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-IMAGE_SIZE = (210, 160)
+#IMAGE_SIZE = (210, 160)
+IMAGE_SIZE = (84, 84)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
 BATCH_SIZE = 256
@@ -72,8 +73,7 @@ def preprocess(state):
     state = np.reshape(state, (state.shape[0], state.shape[1], state.shape[2]*state.shape[3]))
 
     state = state.astype(np.float32)
-#    res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
-    res = state
+    res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
     res -= 128
     res /= 128
     return res
