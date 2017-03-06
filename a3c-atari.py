@@ -203,8 +203,8 @@ class Player:
             self.memory.append((pr_state, action, reward, value))
             if done or self.step_index > self.max_steps:
                 self.state = env.reset()
-                logging.info("%d: Episode done @ step %d: sum reward %f",
-                             self.player_index, self.step_index, self.episode_reward)
+                logging.info("%3d: Episode done @ step %d: sum reward %d",
+                             self.player_index, self.step_index, int(self.episode_reward))
                 self.episode_reward = 0.0
                 self.step_index = 0
                 result.extend(self._memory_to_samples(is_done=done))
