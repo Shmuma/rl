@@ -20,6 +20,7 @@ from keras.callbacks import TensorBoard
 
 import cv2
 
+PLAYERS_COUNT = 50
 HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
@@ -224,7 +225,7 @@ def generate_batches(players, batch_size):
 
     while True:
         for player in players:
-            samples.extend(player.play(10))
+            samples.extend(player.play(20))
         if len(samples) >= batch_size:
             states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
             yield [states, actions, advantages], [rewards, rewards]
@@ -274,7 +275,8 @@ if __name__ == "__main__":
 
     value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
-    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma) for _ in range(10)]
+    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma)
+               for _ in range(PLAYERS_COUNT)]
 
     for x_batch, y_batch in generate_batches(players, BATCH_SIZE):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
