@@ -114,19 +114,19 @@ class Player:
         for _ in range(steps):
             self.step_index += 1
             pr_state = preprocess(self.state)
-            probs, value = run_model.predict_on_batch([
+            probs, value = self.model.predict_on_batch([
                 np.array([pr_state]),
             ])
             probs, value = probs[0], value[0][0]
             # take action
             action = np.random.choice(len(probs), p=probs)
-            self.state, reward, done, _ = env.step(action)
+            self.state, reward, done, _ = self.env.step(action)
             save_state(self.state[-1], prefix="p%03d" % self.player_index)
 
             self.episode_reward += reward
             self.memory.append((pr_state, action, reward, value))
             if done or self.step_index > self.max_steps:
-                self.state = env.reset()
+                self.state = self.env.reset()
                 logging.info("%3d: Episode done @ step %d: sum reward %d",
                              self.player_index, self.step_index, int(self.episode_reward))
                 self.episode_reward = 0.0
