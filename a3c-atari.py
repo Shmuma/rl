@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
-import sys
 import argparse
 import logging
 import numpy as np
@@ -25,7 +24,7 @@ HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-IMAGE_SIZE = (84, 84)
+IMAGE_SIZE = (210, 160)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
 BATCH_SIZE = 128
@@ -73,7 +72,8 @@ def preprocess(state):
     state = np.reshape(state, (state.shape[0], state.shape[1], state.shape[2]*state.shape[3]))
 
     state = state.astype(np.float32)
-    res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
+#    res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
+    res = state
     res -= 128
     res /= 128
     return res
@@ -162,6 +162,15 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
     return batch, action, sum_reward, advantage
 
 
+image_index = {}
+
+def save_state(rgb_arr, prefix='state'):
+    global image_index
+    idx = image_index.get(prefix, 0)
+    matplotlib.image.imsave("%s_%05d.png" % (prefix, idx), rgb_arr)
+    image_index[prefix] = idx + 1
+
+
 class Player:
     def __init__(self, env, model, reward_steps, gamma, max_steps, player_index):
         self.env = env
@@ -169,6 +178,7 @@ class Player:
         self.reward_steps = reward_steps
         self.gamma = gamma
         self.state = env.reset()
+
         self.memory = []
         self.episode_reward = 0.0
         self.step_index = 0
@@ -232,7 +242,7 @@ def generate_batches(players, batch_size):
     while True:
         for player in players:
             samples.extend(player.play(10))
-        if len(samples) >= batch_size:
+        while len(samples) >= batch_size:
             states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
             yield [states, actions, advantages], [rewards, rewards]
             samples = samples[batch_size:]
@@ -285,7 +295,8 @@ if __name__ == "__main__":
                       max_steps=1000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
-    for x_batch, y_batch in generate_batches(players, BATCH_SIZE):
+    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
+#        logger.info("Learning iteration %d", iter_idx)
 #        print(l)
-    sys.exit(0)
+
