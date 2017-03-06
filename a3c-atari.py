@@ -163,7 +163,7 @@ def create_batch(iter_no, env, run_model, num_episodes, steps_limit=None,
 
 
 class Player:
-    def __init__(self, env, model, reward_steps, gamma):
+    def __init__(self, env, model, reward_steps, gamma, max_steps, player_index):
         self.env = env
         self.model = model
         self.reward_steps = reward_steps
@@ -171,11 +171,15 @@ class Player:
         self.state = env.reset()
         self.memory = []
         self.episode_reward = 0.0
+        self.step_index = 0
+        self.max_steps = max_steps
+        self.player_index = player_index
 
     def play(self, steps):
         result = []
 
         for _ in range(steps):
+            self.step_index += 1
             pr_state = preprocess(self.state)
             probs, value = run_model.predict_on_batch([
                 np.array([pr_state]),
@@ -187,11 +191,13 @@ class Player:
 
             self.episode_reward += reward
             self.memory.append((pr_state, action, reward, value))
-            if done:
+            if done or self.step_index > self.max_steps:
                 self.state = env.reset()
-                logging.info("Episode done: sum reward %f", self.episode_reward)
+                logging.info("%d: Episode done @ step %d: sum reward %f",
+                             self.player_index, self.step_index, self.episode_reward)
                 self.episode_reward = 0.0
-                result.extend(self._memory_to_samples(is_done=True))
+                self.step_index = 0
+                result.extend(self._memory_to_samples(is_done=done))
                 break
             elif len(self.memory) == self.reward_steps + 1:
                 result.extend(self._memory_to_samples(is_done=False))
@@ -225,7 +231,7 @@ def generate_batches(players, batch_size):
 
     while True:
         for player in players:
-            samples.extend(player.play(20))
+            samples.extend(player.play(10))
         if len(samples) >= batch_size:
             states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
             yield [states, actions, advantages], [rewards, rewards]
@@ -275,8 +281,9 @@ if __name__ == "__main__":
 
     value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
-    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma)
-               for _ in range(PLAYERS_COUNT)]
+    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
+                      max_steps=1000, player_index=idx)
+               for idx in range(PLAYERS_COUNT)]
 
     for x_batch, y_batch in generate_batches(players, BATCH_SIZE):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
