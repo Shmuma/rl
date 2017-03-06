@@ -19,6 +19,10 @@ from keras.callbacks import TensorBoard
 
 import cv2
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.image
+
 PLAYERS_COUNT = 50
 HISTORY_STEPS = 4
 
@@ -80,25 +84,29 @@ def preprocess(state):
 image_index = {}
 
 def save_state(rgb_arr, prefix='state'):
-    global image_index
-    idx = image_index.get(prefix, 0)
-    matplotlib.image.imsave("%s_%05d.png" % (prefix, idx), rgb_arr)
-    image_index[prefix] = idx + 1
+    # global image_index
+    # idx = image_index.get(prefix, 0)
+    # matplotlib.image.imsave("%s_%05d.png" % (prefix, idx), rgb_arr)
+    # image_index[prefix] = idx + 1
+    pass
 
 
 class Player:
-    def __init__(self, env, model, reward_steps, gamma, max_steps, player_index):
+    def __init__(self, env, reward_steps, gamma, max_steps, player_index):
         self.env = env
-        self.model = model
         self.reward_steps = reward_steps
         self.gamma = gamma
         self.state = env.reset()
+        save_state(self.state[-1], prefix="p%03d" % player_index)
 
         self.memory = []
         self.episode_reward = 0.0
         self.step_index = 0
         self.max_steps = max_steps
         self.player_index = player_index
+
+    def set_model(self, model):
+        self.model = model
 
     def play(self, steps):
         result = []
@@ -113,6 +121,7 @@ class Player:
             # take action
             action = np.random.choice(len(probs), p=probs)
             self.state, reward, done, _ = env.step(action)
+            save_state(self.state[-1], prefix="p%03d" % self.player_index)
 
             self.episode_reward += reward
             self.memory.append((pr_state, action, reward, value))
@@ -174,7 +183,11 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=10, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
 
-    env = make_env(args.env, args.monitor)
+    players = [Player(make_env(args.env, args.monitor), reward_steps=args.steps, gamma=args.gamma,
+                      max_steps=40000, player_index=idx)
+               for idx in range(PLAYERS_COUNT)]
+
+    env = players[0].env
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
@@ -201,9 +214,8 @@ if __name__ == "__main__":
 
     value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=loss_dict)
 
-    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
-                      max_steps=40000, player_index=idx)
-               for idx in range(PLAYERS_COUNT)]
+    for p in players:
+        p.set_model(run_model)
 
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
