@@ -27,7 +27,7 @@ SIMPLE_L2_SIZE = 50
 IMAGE_SIZE = (210, 160)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
