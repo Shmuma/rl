@@ -16,6 +16,7 @@ from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Pe
 from keras.optimizers import Adam, Adagrad
 from keras import backend as K
 from keras.callbacks import TensorBoard
+import tensorflow as tf
 
 import cv2
 
@@ -55,6 +56,8 @@ def make_model(n_actions, train_mode=True):
     policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
     value_t = Dense(1, name='value')(out_t)
 
+    tf.summary.scalar("value", value_t)
+
     # we're not going to train -- just return policy and value from our state
     run_model = Model(input=in_t, output=[policy_t, value_t])
     if not train_mode:
@@ -63,6 +66,8 @@ def make_model(n_actions, train_mode=True):
     # we're training, life is much more interesting...
     action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
     advantage_t = Input(batch_shape=(None, 1), name="advantage")
+
+    tf.summary.scalar("advantage", advantage_t)
 
     X_ENTROPY_BETA = 0.01
 
@@ -73,7 +78,11 @@ def make_model(n_actions, train_mode=True):
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
         x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
-        return -res_t + X_ENTROPY_BETA * x_entropy_t
+        full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
+        tf.summary.scalar("loss_entropy", x_entropy_t)
+        tf.summary.scalar("loss_policy", -res_t)
+        tf.summary.scalar("loss_full", full_policy_loss_t)
+        return full_policy_loss_t
 
     loss_args = [policy_t, action_t, advantage_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
@@ -208,9 +217,14 @@ if __name__ == "__main__":
 
     value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
+    summaries = tf.summary.merge_all()
+
+
     players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
                       max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
+
+
 
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
         for _ in range(3):
