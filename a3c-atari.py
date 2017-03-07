@@ -12,10 +12,9 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
+from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer
 from keras.optimizers import Adam, Adagrad
 from keras import backend as K
-from keras.callbacks import TensorBoard
 import tensorflow as tf
 
 import cv2
@@ -41,6 +40,22 @@ def make_env(env_name, monitor_dir):
     return env
 
 
+class SummaryWriter(Layer):
+    def __init__(self, **kwargs):
+        self.add_update(tf.summary.merge_all())
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        pass
+
+    def get_output_shape_for(self, input_shape):
+        return input_shape
+
+    def call(self, x, mask=None):
+        return x
+
+
+
 def make_model(n_actions, train_mode=True):
     in_t = Input(shape=IMAGE_SHAPE, name='input')
     out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(in_t)
@@ -56,7 +71,6 @@ def make_model(n_actions, train_mode=True):
     policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
     value_t = Dense(1, name='value')(out_t)
 
-    tf.summary.scalar("value", value_t)
 
     # we're not going to train -- just return policy and value from our state
     run_model = Model(input=in_t, output=[policy_t, value_t])
@@ -67,7 +81,8 @@ def make_model(n_actions, train_mode=True):
     action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
     advantage_t = Input(batch_shape=(None, 1), name="advantage")
 
-    tf.summary.scalar("advantage", advantage_t)
+    tf.summary.scalar("value", K.mean(value_t))
+    tf.summary.scalar("advantage", K.mean(advantage_t))
 
     X_ENTROPY_BETA = 0.01
 
@@ -79,9 +94,9 @@ def make_model(n_actions, train_mode=True):
         res_t = adv_t * p_oh_t
         x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
         full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
-        tf.summary.scalar("loss_entropy", x_entropy_t)
-        tf.summary.scalar("loss_policy", -res_t)
-        tf.summary.scalar("loss_full", full_policy_loss_t)
+        tf.summary.scalar("loss_entropy", K.mean(x_entropy_t))
+        tf.summary.scalar("loss_policy", K.mean(-res_t))
+        tf.summary.scalar("loss_full", K.mean(full_policy_loss_t))
         return full_policy_loss_t
 
     loss_args = [policy_t, action_t, advantage_t]
@@ -189,6 +204,16 @@ def generate_batches(players, batch_size):
             samples = samples[batch_size:]
 
 
+def summary(y_true, y_pred):
+    return tf.summary.merge_all()
+
+
+def make_reward_summary(rewards):
+    summ = tf.Summary()
+    summ_value = summ.value.add()
+    summ_value.simple_value = np.mean(rewards)
+    summ_value.tag = "reward"
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -215,23 +240,28 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
-    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
+    # A bit of keras magic
+    metrics_dict = {
+        'value': summary
+    }
 
-    summaries = tf.summary.merge_all()
+    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict, metrics=metrics_dict)
 
+    summary_writer = tf.summary.FileWriter("logs/" + args.name)
 
     players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
                       max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
-
-
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
         for _ in range(3):
             l = value_policy_model.train_on_batch(x_batch, y_batch)
+        l_dict = dict(zip(value_policy_model.metrics_names, l))
+
+        summary_writer.add_summary(make_reward_summary(y_batch[0]), global_step=iter_idx)
+        summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
+        summary_writer.flush()
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             run_model.set_weights(value_policy_model.get_weights())
             logger.info("Models synchronized, iter %d", iter_idx)
-#        logger.info("Learning iteration %d", iter_idx)
-#        print(l)
 
