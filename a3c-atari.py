@@ -213,6 +213,7 @@ def make_reward_summary(rewards):
     summ_value = summ.value.add()
     summ_value.simple_value = np.mean(rewards)
     summ_value.tag = "reward"
+    return summ
 
 
 if __name__ == "__main__":
