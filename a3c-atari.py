@@ -31,6 +31,7 @@ IMAGE_SIZE = (84, 84)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
 BATCH_SIZE = 256
+SYNC_MODEL_EVERY_BATCH = 50
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -39,7 +40,18 @@ def make_env(env_name, monitor_dir):
     return env
 
 
-def make_model(in_t, out_t, n_actions, train_mode=True):
+def make_model(n_actions, train_mode=True):
+    in_t = Input(shape=IMAGE_SHAPE, name='input')
+    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(in_t)
+    out_t = MaxPooling2D((2, 2))(out_t)
+    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(out_t)
+    out_t = MaxPooling2D((2, 2))(out_t)
+    out_t = Conv2D(64, 4, 4, activation='relu', border_mode='same')(out_t)
+    out_t = MaxPooling2D((2, 2))(out_t)
+    out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
+    out_t = Flatten(name='flat')(out_t)
+    out_t = Dense(512, name='l1', activation='relu')(out_t)
+
     policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
     value_t = Dense(1, name='value')(out_t)
 
@@ -67,7 +79,7 @@ def make_model(in_t, out_t, n_actions, train_mode=True):
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
 
     value_policy_model = Model(input=[in_t, action_t, advantage_t], output=[value_t, policy_loss_t])
-    return run_model, value_policy_model
+    return value_policy_model
 
 
 def preprocess(state):
@@ -185,18 +197,8 @@ if __name__ == "__main__":
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    in_t = Input(shape=IMAGE_SHAPE, name='input')
-    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(in_t)
-    out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(out_t)
-    out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(64, 4, 4, activation='relu', border_mode='same')(out_t)
-    out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
-    out_t = Flatten(name='flat')(out_t)
-    out_t = Dense(512, name='l1', activation='relu')(out_t)
-
-    run_model, value_policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
+    value_policy_model = make_model(n_actions, train_mode=True)
+    run_model = make_model(n_actions, train_mode=False)
     value_policy_model.summary()
 
     loss_dict = {
@@ -204,14 +206,18 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
-    value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
     players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
                       max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
-        l = value_policy_model.train_on_batch(x_batch, y_batch)
+        for _ in range(3):
+            l = value_policy_model.train_on_batch(x_batch, y_batch)
+        if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
+            run_model.set_weights(value_policy_model.get_weights())
+            logger.info("Models synchronized, iter %d", iter_idx)
 #        logger.info("Learning iteration %d", iter_idx)
 #        print(l)
 
