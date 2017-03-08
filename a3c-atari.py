@@ -205,10 +205,6 @@ def generate_batches(players, batch_size):
             samples = samples[batch_size:]
 
 
-def summary(y_true, y_pred):
-    return tf.summary.merge_all()
-
-
 def make_reward_summary(rewards):
     summ = tf.Summary()
     summ_value = summ.value.add()
@@ -242,12 +238,7 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
-    # A bit of keras magic
-    metrics_dict = {
-        'value': summary
-    }
-
-    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict, metrics=metrics_dict)
+    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
 
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
 
@@ -255,9 +246,19 @@ if __name__ == "__main__":
                       max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
+    # add gradient summaries
+    gradients = value_policy_model.optimizer.get_gradients(value_policy_model.total_loss, value_policy_model._collected_trainable_weights)
+    for var, grad in zip(value_policy_model._collected_trainable_weights, gradients):
+        tf.summary.scalar("gradrms_" + var.name, K.sqrt(K.mean(K.square(grad))))
+        tf.summary.histogram("grad_" + var.name, grad)
+
+    # add special metric
+    value_policy_model.metrics_names.append("value_summary")
+    value_policy_model.metrics_tensors.append(tf.summary.merge_all())
+
+
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
-        for _ in range(3):
-            l = value_policy_model.train_on_batch(x_batch, y_batch)
+        l = value_policy_model.train_on_batch(x_batch, y_batch)
         l_dict = dict(zip(value_policy_model.metrics_names, l))
 
         summary_writer.add_summary(make_reward_summary(y_batch[0]), global_step=iter_idx)
