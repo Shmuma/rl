@@ -30,8 +30,8 @@ HISTORY_STEPS = 4
 IMAGE_SIZE = (84, 84)
 IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
-BATCH_SIZE = 256
-SYNC_MODEL_EVERY_BATCH = 50
+BATCH_SIZE = 128
+SYNC_MODEL_EVERY_BATCH = 1
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -82,7 +82,8 @@ def make_model(n_actions, train_mode=True):
     advantage_t = Input(batch_shape=(None, 1), name="advantage")
 
     tf.summary.scalar("value", K.mean(value_t))
-    tf.summary.scalar("advantage", K.mean(advantage_t))
+    tf.summary.scalar("advantage_mean", K.mean(advantage_t))
+    tf.summary.scalar("advantage_rms", K.sqrt(K.mean(K.square(advantage_t))))
 
     X_ENTROPY_BETA = 0.01
 
@@ -94,9 +95,9 @@ def make_model(n_actions, train_mode=True):
         res_t = adv_t * p_oh_t
         x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
         full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
-        tf.summary.scalar("loss_entropy", K.mean(x_entropy_t))
-        tf.summary.scalar("loss_policy", K.mean(-res_t))
-        tf.summary.scalar("loss_full", K.mean(full_policy_loss_t))
+        tf.summary.scalar("loss_entropy", K.sum(x_entropy_t))
+        tf.summary.scalar("loss_policy", K.sum(-res_t))
+        tf.summary.scalar("loss_full", K.sum(full_policy_loss_t))
         return full_policy_loss_t
 
     loss_args = [policy_t, action_t, advantage_t]
@@ -264,5 +265,5 @@ if __name__ == "__main__":
         summary_writer.flush()
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             run_model.set_weights(value_policy_model.get_weights())
-            logger.info("Models synchronized, iter %d", iter_idx)
+#            logger.info("Models synchronized, iter %d", iter_idx)
 
