@@ -205,11 +205,11 @@ def generate_batches(players, batch_size):
             samples = samples[batch_size:]
 
 
-def make_reward_summary(rewards):
+def make_value_summary(name, value):
     summ = tf.Summary()
     summ_value = summ.value.add()
-    summ_value.simple_value = np.mean(rewards)
-    summ_value.tag = "reward"
+    summ_value.simple_value = value
+    summ_value.tag = name
     return summ
 
 
@@ -263,7 +263,9 @@ if __name__ == "__main__":
 
         # write every other batch
         if iter_idx % 2 == 0:
-            summary_writer.add_summary(make_reward_summary(y_batch[0]), global_step=iter_idx)
+            summary_writer.add_summary(make_value_summary("reward", np.mean(y_batch[0])), global_step=iter_idx)
+            summary_writer.add_summary(make_value_summary("loss_value", l_dict['value_loss']), global_step=iter_idx)
+            summary_writer.add_summary(make_value_summary("loss", l_dict['loss']), global_step=iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
