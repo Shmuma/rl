@@ -12,7 +12,7 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer
+from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer, Activation
 from keras.optimizers import Adam, Adagrad
 from keras import backend as K
 import tensorflow as tf
@@ -71,7 +71,6 @@ def make_model(n_actions, train_mode=True):
     policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
     value_t = Dense(1, name='value')(out_t)
 
-
     # we're not going to train -- just return policy and value from our state
     run_model = Model(input=in_t, output=[policy_t, value_t])
     if not train_mode:
@@ -113,8 +112,8 @@ def preprocess(state):
 
     state = state.astype(np.float32)
     res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
-    res -= 128
-    res /= 128
+#    res -= 128
+    res /= 255
     return res
 
 
@@ -198,7 +197,7 @@ def generate_batches(players, batch_size):
 
     while True:
         for player in players:
-            samples.extend(player.play(10))
+            samples.extend(player.play(1))
         while len(samples) >= batch_size:
             states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
             yield [states, actions, advantages], [rewards, rewards]
@@ -220,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=1.0")
     parser.add_argument("-i", "--iters", type=int, default=10000, help="Count of iterations to take, default=100")
-    parser.add_argument("--steps", type=int, default=10, help="Count of steps to use in reward estimation")
+    parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor)
@@ -238,7 +237,7 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
-    value_policy_model.compile(optimizer=Adagrad(clipnorm=0.1), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)
 
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
 
