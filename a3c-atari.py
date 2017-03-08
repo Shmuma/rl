@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
+import os
 import argparse
 import logging
 import numpy as np
@@ -12,16 +13,12 @@ logger.setLevel(logging.INFO)
 import gym, gym.wrappers
 
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer, Activation
-from keras.optimizers import Adam, Adagrad
+from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer
+from keras.optimizers import Adam
 from keras import backend as K
 import tensorflow as tf
 
 import cv2
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.image
 
 PLAYERS_COUNT = 50
 HISTORY_STEPS = 4
@@ -32,6 +29,8 @@ IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 
 BATCH_SIZE = 128
 SYNC_MODEL_EVERY_BATCH = 1
+SAVE_MODEL_EVERY_BATCH = 3000
+
 
 def make_env(env_name, monitor_dir):
     env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
@@ -112,19 +111,8 @@ def preprocess(state):
 
     state = state.astype(np.float32)
     res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
-#    res -= 128
     res /= 255
     return res
-
-
-image_index = {}
-
-def save_state(rgb_arr, prefix='state'):
-    # global image_index
-    # idx = image_index.get(prefix, 0)
-    # matplotlib.image.imsave("%s_%05d.png" % (prefix, idx), rgb_arr)
-    # image_index[prefix] = idx + 1
-    pass
 
 
 class Player:
@@ -222,10 +210,14 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
 
+    # limit GPU memory
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.1
+    K.set_session(tf.Session(config=config))
+
     env = make_env(args.env, args.monitor)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
-
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
     value_policy_model = make_model(n_actions, train_mode=True)
@@ -255,7 +247,6 @@ if __name__ == "__main__":
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
-
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
         l_dict = dict(zip(value_policy_model.metrics_names, l))
@@ -270,4 +261,5 @@ if __name__ == "__main__":
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             run_model.set_weights(value_policy_model.get_weights())
 #            logger.info("Models synchronized, iter %d", iter_idx)
-
+        if iter_idx % SAVE_MODEL_EVERY_BATCH == 0 and iter_idx > 0:
+            value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
