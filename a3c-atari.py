@@ -249,8 +249,9 @@ if __name__ == "__main__":
     # add gradient summaries
     gradients = value_policy_model.optimizer.get_gradients(value_policy_model.total_loss, value_policy_model._collected_trainable_weights)
     for var, grad in zip(value_policy_model._collected_trainable_weights, gradients):
-        tf.summary.scalar("gradrms_" + var.name, K.sqrt(K.mean(K.square(grad))))
-        tf.summary.histogram("grad_" + var.name, grad)
+        n = var.name.split(':', maxsplit=1)[0]
+        tf.summary.scalar("gradrms_" + n, K.sqrt(K.mean(K.square(grad))))
+        tf.summary.histogram("grad_" + n, grad)
 
     # add special metric
     value_policy_model.metrics_names.append("value_summary")
