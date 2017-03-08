@@ -212,7 +212,7 @@ if __name__ == "__main__":
 
     # limit GPU memory
     config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.1
+    config.gpu_options.per_process_gpu_memory_fraction = 0.2
     K.set_session(tf.Session(config=config))
 
     env = make_env(args.env, args.monitor)
