@@ -238,7 +238,7 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
-    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adagrad(clipnorm=0.1), loss=loss_dict)
 
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
 
@@ -251,7 +251,6 @@ if __name__ == "__main__":
     for var, grad in zip(value_policy_model._collected_trainable_weights, gradients):
         n = var.name.split(':', maxsplit=1)[0]
         tf.summary.scalar("gradrms_" + n, K.sqrt(K.mean(K.square(grad))))
-        tf.summary.histogram("grad_" + n, grad)
 
     # add special metric
     value_policy_model.metrics_names.append("value_summary")
@@ -262,9 +261,11 @@ if __name__ == "__main__":
         l = value_policy_model.train_on_batch(x_batch, y_batch)
         l_dict = dict(zip(value_policy_model.metrics_names, l))
 
-        summary_writer.add_summary(make_reward_summary(y_batch[0]), global_step=iter_idx)
-        summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
-        summary_writer.flush()
+        # write every other batch
+        if iter_idx % 2 == 0:
+            summary_writer.add_summary(make_reward_summary(y_batch[0]), global_step=iter_idx)
+            summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
+            summary_writer.flush()
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             run_model.set_weights(value_policy_model.get_weights())
 #            logger.info("Models synchronized, iter %d", iter_idx)
