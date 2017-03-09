@@ -2,7 +2,7 @@
 import argparse
 import numpy as np
 
-from .a3c_atari import make_env, make_model, preprocess
+from a3c_atari import make_env, make_model, preprocess
 
 
 if __name__ == "__main__":
