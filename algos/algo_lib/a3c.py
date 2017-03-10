@@ -45,7 +45,6 @@ def net_loss(policy_t, value_t, n_actions):
         full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
         tf.summary.scalar("loss_entropy", K.sum(x_entropy_t))
         tf.summary.scalar("loss_policy", K.sum(-res_t))
-        tf.summary.scalar("loss_full", K.sum(full_policy_loss_t))
         return full_policy_loss_t
 
     loss_args = [policy_t, action_t, advantage_t]

@@ -1,19 +1,19 @@
-import gym, gym.wrappers
+import gym
+import gym.wrappers
 import numpy as np
 
 import keras.backend as K
 import tensorflow as tf
 
 
-
 def HistoryWrapper(steps):
-    class HistoryWrapper(gym.Wrapper):
+    class _HistoryWrapper(gym.Wrapper):
         """
         Track history of observations for given amount of steps
         Initial steps are zero-filled
         """
         def __init__(self, env):
-            super(HistoryWrapper, self).__init__(env)
+            super(_HistoryWrapper, self).__init__(env)
             self.steps = steps
             self.history = self._make_history()
 
@@ -32,7 +32,7 @@ def HistoryWrapper(steps):
             self.history.append(self.env.reset())
             return np.array(self.history)
 
-    return HistoryWrapper
+    return _HistoryWrapper
 
 
 def make_env(env_name, monitor_dir=None, history_steps=2):
@@ -58,3 +58,18 @@ def summarize_gradients(model):
     for var, grad in zip(model._collected_trainable_weights, gradients):
         n = var.name.split(':', maxsplit=1)[0]
         tf.summary.scalar("gradrms_" + n, K.sqrt(K.mean(K.square(grad))))
+
+
+def summary_value(name, value, writer, step_no):
+    """
+    Add given actual value to summary writer
+    :param name: name of value to add
+    :param value: scalar value
+    :param writer: SummaryWriter instance
+    :param step_no: global step index
+    """
+    summ = tf.Summary()
+    summ_value = summ.value.add()
+    summ_value.simple_value = value
+    summ_value.tag = name
+    writer.add_summary(summ, global_step=step_no)
