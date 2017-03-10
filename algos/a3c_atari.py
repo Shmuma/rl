@@ -3,6 +3,7 @@
 import os
 import argparse
 import logging
+import time
 import numpy as np
 
 logger = logging.getLogger()
@@ -12,7 +13,7 @@ from keras.optimizers import Adam
 from keras import backend as K
 import tensorflow as tf
 
-from algo_lib.common import make_env
+from algo_lib.common import make_env, summarize_gradients
 from algo_lib.atari_opts import HISTORY_STEPS, net_input
 from algo_lib.a3c import make_run_model, make_train_model
 
@@ -38,6 +39,9 @@ class Player:
         self.max_steps = max_steps
         self.player_index = player_index
 
+        self.done_rewards = []
+        self.done_steps = []
+
     def play(self, steps):
         result = []
 
@@ -58,6 +62,8 @@ class Player:
                 self.state = self.env.reset()
                 logging.info("%3d: Episode done @ step %d: sum reward %d",
                              self.player_index, self.step_index, int(self.episode_reward))
+                self.done_rewards.append(self.episode_reward)
+                self.done_steps.append(self.step_index)
                 self.episode_reward = 0.0
                 self.step_index = 0
                 result.extend(self._memory_to_samples(is_done=done))
@@ -89,6 +95,21 @@ class Player:
 
         self.memory = [] if is_done else [last_item]
         return result
+
+    @classmethod
+    def gather_done(cls, *players):
+        """
+        Collect done count of steps and rewards from list of players
+        :param players: list of players
+        :return: list of steps, list of rewards of done episodes
+        """
+        res_steps, res_rewards = [], []
+        for p in players:
+            res_steps.extend(p.done_steps)
+            res_rewards.extend(p.done_rewards)
+            p.done_steps = []
+            p.done_rewards = []
+        return res_steps, res_rewards
 
 
 def generate_batches(players, batch_size):
@@ -153,26 +174,41 @@ if __name__ == "__main__":
                for idx in range(PLAYERS_COUNT)]
 
     # add gradient summaries
-    gradients = value_policy_model.optimizer.get_gradients(value_policy_model.total_loss, value_policy_model._collected_trainable_weights)
-    for var, grad in zip(value_policy_model._collected_trainable_weights, gradients):
-        n = var.name.split(':', maxsplit=1)[0]
-        tf.summary.scalar("gradrms_" + n, K.sqrt(K.mean(K.square(grad))))
+    summarize_gradients(value_policy_model)
 
-    # add special metric
+    # add special metric to model to have summaries
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
+
+    bench_samples = 0
+    bench_ts = time.time()
 
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
         l_dict = dict(zip(value_policy_model.metrics_names, l))
 
+        bench_samples += BATCH_SIZE
+
         # write every other batch
         if iter_idx % 2 == 0:
+            done_steps, done_rewards = Player.gather_done(*players)
+
+            if done_steps:
+                summary_writer.add_summary(make_value_summary("done_episodes", len(done_steps)), global_step=iter_idx)
+                summary_writer.add_summary(make_value_summary("done_steps_mean", np.mean(done_steps)), global_step=iter_idx)
+                summary_writer.add_summary(make_value_summary("done_steps_max", np.max(done_steps)), global_step=iter_idx)
+                summary_writer.add_summary(make_value_summary("done_rewards_mean", np.mean(done_rewards)), global_step=iter_idx)
+                summary_writer.add_summary(make_value_summary("done_rewards_max", np.max(done_rewards)), global_step=iter_idx)
+
+            summary_writer.add_summary(make_value_summary("speed_samples", bench_samples / (time.time() - bench_ts)),
+                                       global_step=iter_idx)
             summary_writer.add_summary(make_value_summary("reward", np.mean(y_batch[0])), global_step=iter_idx)
             summary_writer.add_summary(make_value_summary("loss_value", l_dict['value_loss']), global_step=iter_idx)
             summary_writer.add_summary(make_value_summary("loss", l_dict['loss']), global_step=iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
+            bench_samples = 0
+            bench_ts = time.time()
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             run_model.set_weights(value_policy_model.get_weights())
 #            logger.info("Models synchronized, iter %d", iter_idx)
