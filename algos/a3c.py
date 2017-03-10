@@ -4,29 +4,19 @@ import argparse
 import logging
 import numpy as np
 
-from rl_lib.wrappers import HistoryWrapper
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-import gym, gym.wrappers
-
 from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Permute, Reshape, BatchNormalization
+from keras.layers import Input, Dense, Flatten, Lambda
 from keras.optimizers import Adagrad
 from keras import backend as K
+
+from algo_lib.common import make_env
 
 HISTORY_STEPS = 2
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
-
-
-def make_env(env_name, monitor_dir):
-    env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
-    if monitor_dir:
-        env = gym.wrappers.Monitor(env, monitor_dir)
-    return env
-
 
 def make_model(in_t, out_t, n_actions, train_mode=True):
     policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
@@ -157,39 +147,18 @@ if __name__ == "__main__":
     parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
     parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
     parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
-    parser.add_argument("--net", choices=('shallow', 'atari'), default='shallow', help="Type of net to use. default=shallow")
     args = parser.parse_args()
 
-    env = make_env(args.env, args.monitor)
+    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    if args.net == 'shallow':
-        in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-        fl_t = Flatten(name='flat')(in_t)
-        l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
-        out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
-    else:
-        in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
-        # bring together color channel (4-th dim) and history (1-st dim)
-        post_in_t = Permute(dims=(2, 3, 4, 1))(in_t)
-
-        channels = state_shape[-1]
-        res_shape = (state_shape[0], state_shape[1], channels * HISTORY_STEPS)
-        # put color channel and history together
-        post_in_t = Reshape(target_shape=res_shape)(post_in_t)
-        post_in_t = BatchNormalization()(post_in_t)
-
-        out_t = Conv2D(64, 3, 3, activation='relu')(post_in_t)
-        out_t = Conv2D(64, 3, 3, activation='relu')(out_t)
-        out_t = MaxPooling2D((3, 3))(out_t)
-        out_t = Conv2D(128, 2, 2, activation='relu')(out_t)
-        out_t = MaxPooling2D((3, 3))(out_t)
-        out_t = Flatten(name='flat')(out_t)
-        out_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(out_t)
-        out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(out_t)
+    in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
+    fl_t = Flatten(name='flat')(in_t)
+    l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
+    out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
 
     run_model, value_policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
     value_policy_model.summary()

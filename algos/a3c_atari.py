@@ -5,12 +5,8 @@ import argparse
 import logging
 import numpy as np
 
-from rl_lib.wrappers import HistoryWrapper
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-import gym, gym.wrappers
 
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer
@@ -20,8 +16,11 @@ import tensorflow as tf
 
 import cv2
 
+from algo_lib.common import make_env
+from algo_lib.atari_opts import HISTORY_STEPS
+
+
 PLAYERS_COUNT = 50
-HISTORY_STEPS = 4
 
 #IMAGE_SIZE = (210, 160)
 IMAGE_SIZE = (84, 84)
@@ -30,13 +29,6 @@ IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
 BATCH_SIZE = 128
 SYNC_MODEL_EVERY_BATCH = 1
 SAVE_MODEL_EVERY_BATCH = 3000
-
-
-def make_env(env_name, monitor_dir):
-    env = HistoryWrapper(HISTORY_STEPS)(gym.make(env_name))
-    if monitor_dir:
-        env = gym.wrappers.Monitor(env, monitor_dir)
-    return env
 
 
 class SummaryWriter(Layer):
@@ -52,8 +44,6 @@ class SummaryWriter(Layer):
 
     def call(self, x, mask=None):
         return x
-
-
 
 def make_model(n_actions, train_mode=True):
     in_t = Input(shape=IMAGE_SHAPE, name='input')
@@ -215,7 +205,7 @@ if __name__ == "__main__":
     config.gpu_options.per_process_gpu_memory_fraction = 0.2
     K.set_session(tf.Session(config=config))
 
-    env = make_env(args.env, args.monitor)
+    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
@@ -233,8 +223,8 @@ if __name__ == "__main__":
 
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
 
-    players = [Player(make_env(args.env, args.monitor), run_model, reward_steps=args.steps, gamma=args.gamma,
-                      max_steps=40000, player_index=idx)
+    players = [Player(make_env(args.env, args.monitor, history_steps=HISTORY_STEPS), run_model,
+                      reward_steps=args.steps, gamma=args.gamma, max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
     # add gradient summaries

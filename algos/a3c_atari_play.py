@@ -2,7 +2,10 @@
 import argparse
 import numpy as np
 
-from a3c_atari import make_env, make_model, preprocess
+from a3c_atari import make_model, preprocess
+
+from algo_lib.common import make_env
+from algo_lib.atari_opts import HISTORY_STEPS
 
 
 if __name__ == "__main__":
@@ -14,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Show individual episode results")
     args = parser.parse_args()
 
-    env = make_env(args.env, args.monitor)
+    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
