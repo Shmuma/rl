@@ -28,9 +28,8 @@ SAVE_MODEL_EVERY_BATCH = 3000
 
 
 class Player:
-    def __init__(self, env, model, reward_steps, gamma, max_steps, player_index):
+    def __init__(self, env, reward_steps, gamma, max_steps, player_index):
         self.env = env
-        self.model = model
         self.reward_steps = reward_steps
         self.gamma = gamma
         self.state = env.reset()
@@ -43,34 +42,40 @@ class Player:
 
         self.done_rewards = []
 
-    def play(self, steps):
+    @classmethod
+    def step_players(cls, model, players):
+        """
+        Do one step for list of players
+        :param model: model to use for predictions
+        :param players: player instances
+        :return: list of samples
+        """
+        probs, values = model.predict_on_batch(np.array([
+            p.state for p in players
+        ]))
         result = []
+        for idx, player in enumerate(players):
+            action = np.random.choice(len(probs[idx]), p=probs[idx])
+            result.extend(player.step(action, values[idx][0]))
+        return result
 
-        for _ in range(steps):
-            self.step_index += 1
-            probs, value = self.model.predict_on_batch([
-                np.array([self.state]),
-            ])
-            probs, value = probs[0], value[0][0]
-            # take action
-            action = np.random.choice(len(probs), p=probs)
-            new_state, reward, done, _ = self.env.step(action)
+    def step(self, action, value):
+        result = []
+        new_state, reward, done, _ = self.env.step(action)
+        self.episode_reward += reward
+        self.memory.append((self.state, action, reward, value))
+        self.state = new_state
 
-            self.episode_reward += reward
-            self.memory.append((self.state, action, reward, value))
-            self.state = new_state
-
-            if done or self.step_index > self.max_steps:
-                self.state = self.env.reset()
-                logging.info("%3d: Episode done @ step %d: sum reward %d",
-                             self.player_index, self.step_index, int(self.episode_reward))
-                self.done_rewards.append(self.episode_reward)
-                self.episode_reward = 0.0
-                self.step_index = 0
-                result.extend(self._memory_to_samples(is_done=done))
-            elif len(self.memory) == self.reward_steps + 1:
-                result.extend(self._memory_to_samples(is_done=False))
-
+        if done or self.step_index > self.max_steps:
+            self.state = self.env.reset()
+            logging.info("%3d: Episode done @ step %d: sum reward %d",
+                         self.player_index, self.step_index, int(self.episode_reward))
+            self.done_rewards.append(self.episode_reward)
+            self.episode_reward = 0.0
+            self.step_index = 0
+            result.extend(self._memory_to_samples(is_done=done))
+        elif len(self.memory) == self.reward_steps + 1:
+            result.extend(self._memory_to_samples(is_done=False))
         return result
 
     def _memory_to_samples(self, is_done):
@@ -108,12 +113,11 @@ class Player:
         return res
 
 
-def generate_batches(players, batch_size):
+def generate_batches(model, players, batch_size):
     samples = []
 
     while True:
-        for player in players:
-            samples.extend(player.play(1))
+        samples.extend(Player.step_players(model, players))
         while len(samples) >= batch_size:
             states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
             yield [states, actions, advantages], [rewards, rewards]
@@ -161,14 +165,14 @@ if __name__ == "__main__":
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
-    players = [Player(make_env(args.env, args.monitor, history_steps=HISTORY_STEPS), run_model,
-                      reward_steps=args.steps, gamma=args.gamma, max_steps=40000, player_index=idx)
+    players = [Player(make_env(args.env, args.monitor, history_steps=HISTORY_STEPS), reward_steps=args.steps,
+                      gamma=args.gamma, max_steps=40000, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
     bench_samples = 0
     bench_ts = time.time()
 
-    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(players, BATCH_SIZE)):
+    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, BATCH_SIZE)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
         bench_samples += BATCH_SIZE
 
