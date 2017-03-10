@@ -1,5 +1,5 @@
 import gym, gym.wrappers
-
+import numpy as np
 
 
 def HistoryWrapper(steps):
