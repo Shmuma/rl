@@ -41,7 +41,7 @@ def net_loss(policy_t, value_t, n_actions):
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
-        x_entropy_t = -K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
+        x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
         full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
         tf.summary.scalar("loss_entropy", K.sum(x_entropy_t))
         tf.summary.scalar("loss_policy", K.sum(-res_t))
