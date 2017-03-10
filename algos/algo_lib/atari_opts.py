@@ -1,5 +1,5 @@
 # Atari-specific options for environments
-from keras.layers import Input, Flatten, Conv2D, MaxPooling2D, Permute, Reshape, Lambda
+from keras.layers import Input, Flatten, Conv2D, MaxPooling2D, Permute, Reshape, Lambda, Dense
 import tensorflow as tf
 
 # how many steps to keep in input shape
@@ -43,5 +43,6 @@ def net_input(env_state_shape):
     out_t = MaxPooling2D((2, 2))(out_t)
     out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
     out_t = Flatten(name='flat')(out_t)
+    out_t = Dense(512, name='l1', activation='relu')(out_t)
 
     return in_t, out_t

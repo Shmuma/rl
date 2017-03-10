@@ -10,7 +10,7 @@ logger.setLevel(logging.INFO)
 import tensorflow as tf
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda
-from keras.optimizers import Adam
+from keras.optimizers import Adam, Adagrad
 from keras import backend as K
 
 from algo_lib.common import make_env, summarize_gradients, summary_value
@@ -167,7 +167,8 @@ if __name__ == "__main__":
         'value': 'mse',
         'policy_loss': lambda y_true, y_pred: y_pred
     }
-    value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)
+    # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
+    value_policy_model.compile(optimizer=Adam(lr=0.0005, clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
@@ -176,11 +177,11 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(env, reward_steps=5, gamma=1, max_steps=40000, player_index=idx)
+        Player(env, reward_steps=500, gamma=0.99, max_steps=40000, player_index=idx)
         for idx in range(10)
     ]
 
-    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, 128)):
+    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, 32)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
@@ -196,4 +197,5 @@ if __name__ == "__main__":
             summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
+        run_model.set_weights(value_policy_model.get_weights())
     pass
