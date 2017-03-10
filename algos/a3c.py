@@ -17,7 +17,7 @@ from algo_lib.common import make_env, summarize_gradients, summary_value
 from algo_lib.a3c import make_models
 from algo_lib.player import Player, generate_batches
 
-HISTORY_STEPS = 2
+HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         'policy_loss': lambda y_true, y_pred: y_pred
     }
     # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
-    value_policy_model.compile(optimizer=Adam(lr=0.0005, clipnorm=0.1), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adam(lr=0.0002, clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
@@ -177,11 +177,11 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(env, reward_steps=500, gamma=0.99, max_steps=40000, player_index=idx)
+        Player(env, reward_steps=10, gamma=0.99, max_steps=40000, player_index=idx)
         for idx in range(10)
     ]
 
-    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, 32)):
+    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, 128)):
         l = value_policy_model.train_on_batch(x_batch, y_batch)
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
