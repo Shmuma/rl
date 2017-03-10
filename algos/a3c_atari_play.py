@@ -2,10 +2,13 @@
 import argparse
 import numpy as np
 
+from keras.models import Model
+
 from a3c_atari import make_model, preprocess
 
 from algo_lib.common import make_env
-from algo_lib.atari_opts import HISTORY_STEPS
+from algo_lib.atari_opts import HISTORY_STEPS, net_input
+from algo_lib.a3c import net_prediction
 
 
 if __name__ == "__main__":
@@ -22,7 +25,9 @@ if __name__ == "__main__":
     n_actions = env.action_space.n
 
     if args.model is not None:
-        model = make_model(n_actions, train_mode=False)
+        input_t, conv_out_t = net_input(state_shape)
+        out_policy_t, out_value_t = net_prediction(conv_out_t, n_actions)
+        model = Model(input=input_t, output=[out_policy_t, out_value_t])
         model.summary()
         model.load_weights(args.model)
     else:
@@ -40,7 +45,7 @@ if __name__ == "__main__":
                 action = env.action_space.sample()
             else:
                 probs, value = model.predict_on_batch([
-                    np.array([preprocess(state)]),
+                    np.array([state]),
                 ])
                 probs, value = probs[0], value[0][0]
                 # take action
