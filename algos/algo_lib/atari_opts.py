@@ -9,7 +9,6 @@ HISTORY_STEPS = 4
 IMAGE_RESCALE = (84, 84)
 
 
-
 def net_input(env_state_shape):
     """
     Create input part of the network with optional prescaling.
@@ -33,6 +32,8 @@ def net_input(env_state_shape):
     # optional rescale
     if IMAGE_RESCALE is not None:
         out_t = Lambda(lambda img: tf.image.resize_bicubic(img, IMAGE_RESCALE), name='rescale')(out_t)
+
+    out_t = Lambda(lambda img: img / 255.0, name='normalize')(out_t)
 
     out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(out_t)
     out_t = MaxPooling2D((2, 2))(out_t)

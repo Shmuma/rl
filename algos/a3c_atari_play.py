@@ -8,7 +8,7 @@ from a3c_atari import make_model, preprocess
 
 from algo_lib.common import make_env
 from algo_lib.atari_opts import HISTORY_STEPS, net_input
-from algo_lib.a3c import net_prediction
+from algo_lib.a3c import make_run_model
 
 
 if __name__ == "__main__":
@@ -26,8 +26,7 @@ if __name__ == "__main__":
 
     if args.model is not None:
         input_t, conv_out_t = net_input(state_shape)
-        out_policy_t, out_value_t = net_prediction(conv_out_t, n_actions)
-        model = Model(input=input_t, output=[out_policy_t, out_value_t])
+        model = make_run_model(input_t, conv_out_t, n_actions)
         model.summary()
         model.load_weights(args.model)
     else:

@@ -8,101 +8,20 @@ import numpy as np
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda, Conv2D, MaxPooling2D, Layer
 from keras.optimizers import Adam
 from keras import backend as K
 import tensorflow as tf
 
-import cv2
-
 from algo_lib.common import make_env
-from algo_lib.atari_opts import HISTORY_STEPS
+from algo_lib.atari_opts import HISTORY_STEPS, net_input
+from algo_lib.a3c import make_run_model, make_train_model
 
 
 PLAYERS_COUNT = 50
 
-#IMAGE_SIZE = (210, 160)
-IMAGE_SIZE = (84, 84)
-IMAGE_SHAPE = IMAGE_SIZE + (3*HISTORY_STEPS,)
-
 BATCH_SIZE = 128
 SYNC_MODEL_EVERY_BATCH = 1
 SAVE_MODEL_EVERY_BATCH = 3000
-
-
-class SummaryWriter(Layer):
-    def __init__(self, **kwargs):
-        self.add_update(tf.summary.merge_all())
-        super().__init__(**kwargs)
-
-    def build(self, input_shape):
-        pass
-
-    def get_output_shape_for(self, input_shape):
-        return input_shape
-
-    def call(self, x, mask=None):
-        return x
-
-def make_model(n_actions, train_mode=True):
-    in_t = Input(shape=IMAGE_SHAPE, name='input')
-    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(in_t)
-    out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(out_t)
-    out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(64, 4, 4, activation='relu', border_mode='same')(out_t)
-    out_t = MaxPooling2D((2, 2))(out_t)
-    out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
-    out_t = Flatten(name='flat')(out_t)
-    out_t = Dense(512, name='l1', activation='relu')(out_t)
-
-    policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
-    value_t = Dense(1, name='value')(out_t)
-
-    # we're not going to train -- just return policy and value from our state
-    run_model = Model(input=in_t, output=[policy_t, value_t])
-    if not train_mode:
-        return run_model
-
-    # we're training, life is much more interesting...
-    action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
-    advantage_t = Input(batch_shape=(None, 1), name="advantage")
-
-    tf.summary.scalar("value", K.mean(value_t))
-    tf.summary.scalar("advantage_mean", K.mean(advantage_t))
-    tf.summary.scalar("advantage_rms", K.sqrt(K.mean(K.square(advantage_t))))
-
-    X_ENTROPY_BETA = 0.01
-
-    def policy_loss_func(args):
-        p_t, act_t, adv_t = args
-        oh_t = K.one_hot(act_t, n_actions)
-        oh_t = K.squeeze(oh_t, 1)
-        p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
-        res_t = adv_t * p_oh_t
-        x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
-        full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
-        tf.summary.scalar("loss_entropy", K.sum(x_entropy_t))
-        tf.summary.scalar("loss_policy", K.sum(-res_t))
-        tf.summary.scalar("loss_full", K.sum(full_policy_loss_t))
-        return full_policy_loss_t
-
-    loss_args = [policy_t, action_t, advantage_t]
-    policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
-
-    value_policy_model = Model(input=[in_t, action_t, advantage_t], output=[value_t, policy_loss_t])
-    return value_policy_model
-
-
-def preprocess(state):
-    state = np.transpose(state, (1, 2, 3, 0))
-    state = np.reshape(state, (state.shape[0], state.shape[1], state.shape[2]*state.shape[3]))
-
-    state = state.astype(np.float32)
-    res = cv2.resize(state, (IMAGE_SIZE[1], IMAGE_SIZE[0]))
-    res /= 255
-    return res
 
 
 class Player:
@@ -124,17 +43,17 @@ class Player:
 
         for _ in range(steps):
             self.step_index += 1
-            pr_state = preprocess(self.state)
             probs, value = self.model.predict_on_batch([
-                np.array([pr_state]),
+                np.array([self.state]),
             ])
             probs, value = probs[0], value[0][0]
             # take action
             action = np.random.choice(len(probs), p=probs)
-            self.state, reward, done, _ = self.env.step(action)
+            new_state, reward, done, _ = self.env.step(action)
 
             self.episode_reward += reward
-            self.memory.append((pr_state, action, reward, value))
+            self.memory.append((self.state, action, reward, value))
+
             if done or self.step_index > self.max_steps:
                 self.state = self.env.reset()
                 logging.info("%3d: Episode done @ step %d: sum reward %d",
@@ -145,6 +64,8 @@ class Player:
                 break
             elif len(self.memory) == self.reward_steps + 1:
                 result.extend(self._memory_to_samples(is_done=False))
+
+            self.state = new_state
 
         return result
 
@@ -193,9 +114,9 @@ def make_value_summary(name, value):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--name", required=True, help="Run name")
-    parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
+    parser.add_argument("-e", "--env", default="Breakout-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=1.0")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=0.99")
     parser.add_argument("-i", "--iters", type=int, default=10000, help="Count of iterations to take, default=100")
     parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
@@ -210,8 +131,12 @@ if __name__ == "__main__":
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    value_policy_model = make_model(n_actions, train_mode=True)
-    run_model = make_model(n_actions, train_mode=False)
+    tr_input_t, tr_conv_out_t = net_input(state_shape)
+    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions)
+
+    r_input_t, r_conv_out_t = net_input(state_shape)
+    run_model = make_run_model(r_input_t, r_conv_out_t, n_actions)
+
     value_policy_model.summary()
 
     loss_dict = {
