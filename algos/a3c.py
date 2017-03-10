@@ -7,16 +7,22 @@ import numpy as np
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+import tensorflow as tf
 from keras.models import Model
 from keras.layers import Input, Dense, Flatten, Lambda
-from keras.optimizers import Adagrad
+from keras.optimizers import Adam
 from keras import backend as K
 
-from algo_lib.common import make_env
+from algo_lib.common import make_env, summarize_gradients, summary_value
+from algo_lib.a3c import make_models
+from algo_lib.player import Player, generate_batches
 
 HISTORY_STEPS = 2
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
+
+SUMMARY_EVERY_BATCH = 10
+
 
 def make_model(in_t, out_t, n_actions, train_mode=True):
     policy_t = Dense(n_actions, activation='softmax', name='policy')(out_t)
@@ -140,13 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="CartPole-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=1.0, help="Gamma for reward discount, default=1.0")
-    parser.add_argument("--eps", type=float, default=0.2, help="Ratio of random steps, default=0.2")
-    parser.add_argument("--eps-decay", default=1.0, type=float, help="Set eps decay, default=1.0")
-    parser.add_argument("-i", "--iters", type=int, default=100, help="Count of iterations to take, default=100")
-    parser.add_argument("-n", "--steps", type=int, default=10, help="Count of steps to use in reward estimation")
-    parser.add_argument("--min-episodes", type=int, default=1, help="Minimum amount of episodes to play, default=1")
-    parser.add_argument("--min-samples", type=int, default=500, help="Minimum amount of learning samples to generate, default=500")
-    parser.add_argument("--max-steps", type=int, default=None, help="Maximum count of steps per episode, default=NoLimit")
+    parser.add_argument("-n", "--name", required=True, help="Run name")
     args = parser.parse_args()
 
     env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
@@ -157,24 +157,43 @@ if __name__ == "__main__":
 
     in_t = Input(shape=(HISTORY_STEPS,) + state_shape, name='input')
     fl_t = Flatten(name='flat')(in_t)
-    l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='l1')(fl_t)
-    out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='l2')(l1_t)
+    l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='in_l1')(fl_t)
+    out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='in_l2')(l1_t)
 
-    run_model, value_policy_model = make_model(in_t, out_t, n_actions, train_mode=True)
+    run_model, value_policy_model = make_models(in_t, out_t, n_actions)
     value_policy_model.summary()
 
     loss_dict = {
         'value': 'mse',
         'policy_loss': lambda y_true, y_pred: y_pred
     }
-    value_policy_model.compile(optimizer=Adagrad(), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)
 
-    eps = args.eps
-    for iter in range(args.iters):
-        batch, action, reward, advantage = create_batch(iter, env, run_model, eps=eps, num_episodes=args.min_episodes,
-                                                        steps_limit=args.max_steps, min_samples=args.min_samples,
-                                                        n_steps=args.steps, gamma=args.gamma)
-        l = value_policy_model.fit([batch, action, advantage], [reward, reward], verbose=0)
-        eps *= args.eps_decay
-#        logger.info("Loss: %s", l)
+    # keras summary magic
+    summary_writer = tf.summary.FileWriter("logs/" + args.name)
+    summarize_gradients(value_policy_model)
+    value_policy_model.metrics_names.append("value_summary")
+    value_policy_model.metrics_tensors.append(tf.summary.merge_all())
+
+    players = [
+        Player(env, reward_steps=5, gamma=1, max_steps=40000, player_index=idx)
+        for idx in range(10)
+    ]
+
+    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, 128)):
+        l = value_policy_model.train_on_batch(x_batch, y_batch)
+
+        if iter_idx % SUMMARY_EVERY_BATCH == 0:
+            l_dict = dict(zip(value_policy_model.metrics_names, l))
+            done_rewards = Player.gather_done_rewards(*players)
+
+            if done_rewards:
+                summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
+                summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
+
+            summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
+            summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
+            summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
+            summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
+            summary_writer.flush()
     pass

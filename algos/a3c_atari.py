@@ -32,7 +32,6 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--env", default="Breakout-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=0.99")
-    parser.add_argument("-i", "--iters", type=int, default=10000, help="Count of iterations to take, default=100")
     parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
 
