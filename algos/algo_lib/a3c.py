@@ -16,12 +16,13 @@ def net_prediction(input_t, n_actions):
     return policy_t, value_t
 
 
-def net_loss(policy_t, value_t, n_actions):
+def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
     """
     Make traning part of the A3C network
     :param policy_t: policy tensor from prediction part
     :param value_t: value tensor from prediction part
     :param n_actions: count of actions in space
+    :param entropy_beta: entropy loss scaling factor
     :return: action_t, advantage_t, policy_loss_t
     """
     action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
@@ -31,17 +32,15 @@ def net_loss(policy_t, value_t, n_actions):
     tf.summary.scalar("advantage_mean", K.mean(advantage_t))
     tf.summary.scalar("advantage_rms", K.sqrt(K.mean(K.square(advantage_t))))
 
-    X_ENTROPY_BETA = 0.01
-
     def policy_loss_func(args):
         p_t, act_t, adv_t = args
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
         res_t = adv_t * p_oh_t
-        x_entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
-        full_policy_loss_t = -res_t + X_ENTROPY_BETA * x_entropy_t
-        tf.summary.scalar("loss_entropy", K.sum(x_entropy_t))
+        entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
+        full_policy_loss_t = -res_t + entropy_beta * entropy_t
+        tf.summary.scalar("loss_entropy", K.sum(entropy_t))
         tf.summary.scalar("loss_policy", K.sum(-res_t))
         return full_policy_loss_t
 
@@ -62,9 +61,9 @@ def make_train_model(input_t, conv_output_t, n_actions):
     return Model(input=[input_t, action_t, advantage_t], output=[value_t, policy_loss_t])
 
 
-def make_models(input_t, conv_output_t, n_actions):
+def make_models(input_t, conv_output_t, n_actions, **loss_opts):
     policy_t, value_t = net_prediction(conv_output_t, n_actions)
-    action_t, advantage_t, policy_loss_t = net_loss(policy_t, value_t, n_actions)
+    action_t, advantage_t, policy_loss_t = net_loss(policy_t, value_t, n_actions, **loss_opts)
     run_model = Model(input=input_t, output=[policy_t, value_t])
     train_model = Model(input=[input_t, action_t, advantage_t], output=[value_t, policy_loss_t])
     return run_model, train_model
