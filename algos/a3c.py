@@ -52,7 +52,7 @@ if __name__ == "__main__":
     }
     # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     #Adam(lr=0.0001, clipnorm=0.1)
-    value_policy_model.compile(optimizer=RMSprop(lr=0.0001), loss=loss_dict)
+    value_policy_model.compile(optimizer=RMSprop(lr=0.00001, clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(env, reward_steps=5, gamma=1, max_steps=40000, player_index=idx)
+        Player(env, reward_steps=5, gamma=0.99, max_steps=40000, player_index=idx)
         for idx in range(10)
     ]
 
