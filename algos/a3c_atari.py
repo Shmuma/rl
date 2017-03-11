@@ -6,9 +6,6 @@ import logging
 import time
 import numpy as np
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 from keras.optimizers import Adam
 from keras import backend as K
 import tensorflow as tf
@@ -17,6 +14,9 @@ from algo_lib.common import make_env, summarize_gradients, summary_value
 from algo_lib.atari_opts import HISTORY_STEPS, net_input
 from algo_lib.a3c import make_run_model, make_train_model
 from algo_lib.player import Player, generate_batches
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 PLAYERS_COUNT = 50
 BATCH_SIZE = 128
