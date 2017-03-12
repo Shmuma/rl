@@ -14,50 +14,31 @@ from keras.optimizers import Adam
 from algo_lib.common import make_env, summarize_gradients, summary_value
 from algo_lib.atari_opts import net_input, HISTORY_STEPS
 from algo_lib.a3c import make_train_model, make_run_model
+from algo_lib.player import Player
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-PLAYERS_COUNT = 50
+PLAYERS_SWARMS = 5
+PLAYERS_PER_SWARM = 10
 BATCH_SIZE = 128
 
 SUMMARY_EVERY_BATCH = 10
-SYNC_MODEL_EVERY_BATCH = 10
+SYNC_MODEL_EVERY_BATCH = 1
 SAVE_MODEL_EVERY_BATCH = 3000
 
 
-# def player(model_queue, state_queue):
-#     with tf.device("/cpu:0"):
-#         run_model = make_model(2)
-#         run_model.summary()
-#
-#         while True:
-#             time.sleep(1)
-#             r = run_model.predict_on_batch(np.array([[100, 100]]))
-#             print(r)
-#             if not model_queue.empty():
-#                 weights = model_queue.get()
-#                 if weights is None:
-#                     print("Stop requested, exit")
-#                     break
-#                 run_model.set_weights(weights)
-#                 print("New model received")
-#     pass
-
-
-
 class AsyncPlayersSwarm:
-    def __init__(self, env_name, history_steps, gamma, reward_steps, players_count, batch_size, max_steps):
+    def __init__(self, swarms_count, swarm_size, env_name, history_steps, gamma, reward_steps, batch_size, max_steps):
         self.batch_size = batch_size
         self.samples_queue = mp.Queue(maxsize=batch_size * 10)
         self.control_queues = []
         self.processes = []
-
-        for _ in range(players_count):
+        for _ in range(swarms_count):
             ctrl_queue = mp.Queue()
-            args = (env_name, history_steps, gamma, reward_steps, max_steps, ctrl_queue, self.samples_queue)
-            proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.control_queues.append(ctrl_queue)
+            args = (swarm_size, env_name, history_steps, gamma, reward_steps, max_steps, ctrl_queue, self.samples_queue)
+            proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.processes.append(proc)
             proc.start()
 
@@ -73,17 +54,14 @@ class AsyncPlayersSwarm:
         return [states, actions, advantages], [rewards, rewards]
 
     @classmethod
-    def player(cls, env_name, history_steps, gamma, reword_steps, max_steps, ctrl_queue, out_queue):
+    def player(cls, players_count, env_name, history_steps, gamma, reword_steps, max_steps, ctrl_queue, out_queue):
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
-            env = make_env(env_name, history_steps=history_steps)
+            players = [Player(make_env(env_name, history_steps=history_steps), reword_steps, gamma, max_steps, idx)
+                       for idx in range(players_count)]
             input_t, conv_out_t = net_input(env.observation_space.shape)
             n_actions = env.action_space.n
             model = make_run_model(input_t, conv_out_t, n_actions)
-            state = env.reset()
-            memory = []
-            step_index = 0
-
             while True:
                 # check ctrl queue for new model
                 if not ctrl_queue.empty():
@@ -92,35 +70,9 @@ class AsyncPlayersSwarm:
                     if weights is None:
                         break
                     model.set_weights(weights)
-#                    logging.info("Models updated")
 
-                # choose action
-                probs, value = model.predict_on_batch(np.array([state]))
-                probs, value = probs[0], value[0][0]
-                action = np.random.choice(n_actions, p=probs)
-
-                # do action
-                new_state, reward, done, _ = env.step(action)
-                memory.append((state, action, reward, value))
-                state = new_state
-                step_index += 1
-
-                if done or step_index > max_steps:
-                    state = env.reset()
-                    step_index = 0
-                    AsyncPlayersSwarm.memory_to_samples(out_queue, memory, gamma=gamma, sum_r=0.0)
-                    memory = []
-                elif len(memory) == reword_steps + 1:
-                    last_item = memory.pop()
-                    AsyncPlayersSwarm.memory_to_samples(out_queue, memory, gamma=gamma, sum_r=last_item[-1])
-                    memory = [last_item]
-
-    @classmethod
-    def memory_to_samples(cls, out_queue, memory, gamma, sum_r):
-        for state, action, reward, value in reversed(memory):
-            sum_r = reward + sum_r * gamma
-            advantage = sum_r - value
-            out_queue.put((state, action, sum_r, advantage))
+                for sample in Player.step_players(model, players):
+                    out_queue.put(sample)
 
 
 if __name__ == "__main__":
@@ -160,8 +112,8 @@ if __name__ == "__main__":
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
-    players = AsyncPlayersSwarm(args.env, HISTORY_STEPS, args.gamma, args.steps,
-                                players_count=PLAYERS_COUNT, max_steps=40000, batch_size=BATCH_SIZE)
+    players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, HISTORY_STEPS, args.gamma, args.steps,
+                                max_steps=40000, batch_size=BATCH_SIZE)
     iter_idx = 0
     bench_samples = 0
     bench_ts = time.time()
