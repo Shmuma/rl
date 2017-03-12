@@ -166,13 +166,24 @@ if __name__ == "__main__":
     bench_samples = 0
     bench_ts = time.time()
 
+    batch_time = 0
+    train_time = 0
+
     while True:
         iter_idx += 1
+        batch_ts = time.time()
         x_batch, y_batch = players.get_batch()
+        batch_time += time.time() - batch_ts
+        train_ts = time.time()
         l = value_policy_model.train_on_batch(x_batch, y_batch)
+        train_time += time.time() - train_ts
         bench_samples += BATCH_SIZE
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
+            summary_value("time_batch", batch_time / SUMMARY_EVERY_BATCH, summary_writer, iter_idx)
+            summary_value("time_train", train_time / SUMMARY_EVERY_BATCH, summary_writer, iter_idx)
+            batch_time = 0
+            train_time = 0
             l_dict = dict(zip(value_policy_model.metrics_names, l))
             # done_rewards = Player.gather_done_rewards(*players)
             #
