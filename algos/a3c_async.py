@@ -86,7 +86,7 @@ class AsyncPlayersSwarm:
 
                 for sample in Player.step_players(model, players):
                     out_queue.put(sample)
-                for rw in Player.gather_done_rewards(players):
+                for rw in Player.gather_done_rewards(*players):
                     done_rewards_queue.put(rw)
 
 
