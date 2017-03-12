@@ -1,23 +1,19 @@
 #!/usr/bin/env python
+import os
 import argparse
 import logging
-import random
 import numpy as np
 import multiprocessing as mp
 
 import time
 import tensorflow as tf
-
 import keras.backend as K
+
 from keras.optimizers import Adam
 
 from algo_lib.common import make_env, summarize_gradients, summary_value
 from algo_lib.atari_opts import net_input, HISTORY_STEPS
 from algo_lib.a3c import make_train_model, make_run_model
-
-# config = tf.ConfigProto()
-# config.gpu_options.per_process_gpu_memory_fraction = 0.2
-# K.set_session(tf.Session(config=config))
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -26,9 +22,8 @@ PLAYERS_COUNT = 50
 BATCH_SIZE = 128
 
 SUMMARY_EVERY_BATCH = 10
-SYNC_MODEL_EVERY_BATCH = 1
+SYNC_MODEL_EVERY_BATCH = 10
 SAVE_MODEL_EVERY_BATCH = 3000
-
 
 
 # def player(model_queue, state_queue):
@@ -70,9 +65,16 @@ class AsyncPlayersSwarm:
         for q in self.control_queues:
             q.put(weights)
 
+    def get_batch(self):
+        batch = []
+        while len(batch) < self.batch_size:
+            batch.append(self.samples_queue.get())
+        states, actions, rewards, advantages = list(map(np.array, zip(*batch)))
+        return [states, actions, advantages], [rewards, rewards]
+
     @classmethod
     def player(cls, env_name, history_steps, gamma, reword_steps, max_steps, ctrl_queue, out_queue):
-
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
             env = make_env(env_name, history_steps=history_steps)
             input_t, conv_out_t = net_input(env.observation_space.shape)
@@ -90,7 +92,7 @@ class AsyncPlayersSwarm:
                     if weights is None:
                         break
                     model.set_weights(weights)
-                    logging.info("Models updated")
+#                    logging.info("Models updated")
 
                 # choose action
                 probs, value = model.predict_on_batch(np.array([state]))
@@ -134,7 +136,7 @@ if __name__ == "__main__":
     # config = tf.ConfigProto()
     # config.gpu_options.per_process_gpu_memory_fraction = 0.2
     # K.set_session(tf.Session(config=config))
-    #
+
     env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
@@ -159,38 +161,37 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = AsyncPlayersSwarm(args.env, HISTORY_STEPS, args.gamma, args.steps,
-                                players_count=2, max_steps=40000, batch_size=32)
-    while True:
-        time.sleep(1)
-        players.push_model_weights(value_policy_model.get_weights())
+                                players_count=PLAYERS_COUNT, max_steps=40000, batch_size=BATCH_SIZE)
+    iter_idx = 0
+    bench_samples = 0
+    bench_ts = time.time()
 
-    # bench_samples = 0
-    # bench_ts = time.time()
-    #
-    # for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, BATCH_SIZE)):
-    #     l = value_policy_model.train_on_batch(x_batch, y_batch)
-    #     bench_samples += BATCH_SIZE
-    #
-    #     if iter_idx % SUMMARY_EVERY_BATCH == 0:
-    #         l_dict = dict(zip(value_policy_model.metrics_names, l))
-    #         done_rewards = Player.gather_done_rewards(*players)
-    #
-    #         if done_rewards:
-    #             summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
-    #             summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
-    #
-    #         summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
-    #         summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
-    #         summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
-    #         summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
-    #         summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
-    #         summary_writer.flush()
-    #         bench_samples = 0
-    #         bench_ts = time.time()
-    #
-    #     if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
-    #         run_model.set_weights(value_policy_model.get_weights())
-    #         #            logger.info("Models synchronized, iter %d", iter_idx)
-    #
-    #     if iter_idx % SAVE_MODEL_EVERY_BATCH == 0 and iter_idx > 0:
-    #         value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
+    while True:
+        iter_idx += 1
+        x_batch, y_batch = players.get_batch()
+        l = value_policy_model.train_on_batch(x_batch, y_batch)
+        bench_samples += BATCH_SIZE
+
+        if iter_idx % SUMMARY_EVERY_BATCH == 0:
+            l_dict = dict(zip(value_policy_model.metrics_names, l))
+            # done_rewards = Player.gather_done_rewards(*players)
+            #
+            # if done_rewards:
+            #     summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
+            #     summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
+
+            summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
+            summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
+            summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
+            summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
+            summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
+            summary_writer.flush()
+            bench_samples = 0
+            bench_ts = time.time()
+
+        if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
+            players.push_model_weights(value_policy_model.get_weights())
+            logger.info("Models synchronized @ iter %d", iter_idx)
+
+        if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
+            value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
