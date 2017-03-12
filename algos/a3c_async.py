@@ -4,6 +4,7 @@ import argparse
 import logging
 import numpy as np
 import multiprocessing as mp
+import queue
 
 import time
 import tensorflow as tf
@@ -24,7 +25,7 @@ PLAYERS_PER_SWARM = 10
 BATCH_SIZE = 128
 
 SUMMARY_EVERY_BATCH = 10
-SYNC_MODEL_EVERY_BATCH = 1
+SYNC_MODEL_EVERY_BATCH = 5
 SAVE_MODEL_EVERY_BATCH = 3000
 
 
@@ -32,12 +33,14 @@ class AsyncPlayersSwarm:
     def __init__(self, swarms_count, swarm_size, env_name, history_steps, gamma, reward_steps, batch_size, max_steps):
         self.batch_size = batch_size
         self.samples_queue = mp.Queue(maxsize=batch_size * 10)
+        self.done_rewards_queue = mp.Queue()
         self.control_queues = []
         self.processes = []
         for _ in range(swarms_count):
             ctrl_queue = mp.Queue()
             self.control_queues.append(ctrl_queue)
-            args = (swarm_size, env_name, history_steps, gamma, reward_steps, max_steps, ctrl_queue, self.samples_queue)
+            args = (swarm_size, env_name, history_steps, gamma, reward_steps, max_steps,
+                    ctrl_queue, self.samples_queue, self.done_rewards_queue)
             proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.processes.append(proc)
             proc.start()
@@ -53,8 +56,18 @@ class AsyncPlayersSwarm:
         states, actions, rewards, advantages = list(map(np.array, zip(*batch)))
         return [states, actions, advantages], [rewards, rewards]
 
+    def get_done_rewards(self):
+        res = []
+        try:
+            while True:
+                res.append(self.done_rewards_queue.get_nowait())
+        except queue.Empty:
+            pass
+        return res
+
     @classmethod
-    def player(cls, players_count, env_name, history_steps, gamma, reword_steps, max_steps, ctrl_queue, out_queue):
+    def player(cls, players_count, env_name, history_steps, gamma, reword_steps,
+               max_steps, ctrl_queue, out_queue, done_rewards_queue):
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
             players = [Player(make_env(env_name, history_steps=history_steps), reword_steps, gamma, max_steps, idx)
@@ -73,6 +86,8 @@ class AsyncPlayersSwarm:
 
                 for sample in Player.step_players(model, players):
                     out_queue.put(sample)
+                for rw in Player.gather_done_rewards(players):
+                    done_rewards_queue.put(rw)
 
 
 if __name__ == "__main__":
@@ -137,11 +152,11 @@ if __name__ == "__main__":
             batch_time = 0
             train_time = 0
             l_dict = dict(zip(value_policy_model.metrics_names, l))
-            # done_rewards = Player.gather_done_rewards(*players)
-            #
-            # if done_rewards:
-            #     summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
-            #     summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
+            done_rewards = players.get_done_rewards()
+
+            if done_rewards:
+                summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
+                summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
 
             summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
             summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
