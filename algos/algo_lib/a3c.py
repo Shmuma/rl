@@ -1,4 +1,4 @@
-from keras.layers import Dense, Input, Lambda
+from keras.layers import Dense, Input, Lambda, BatchNormalization
 from keras.models import Model
 import keras.backend as K
 import tensorflow as tf
@@ -27,6 +27,7 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
     """
     action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
     reward_t = Input(batch_shape=(None, 1), name="reward")
+    reward_t = BatchNormalization()(reward_t)
 
     def policy_loss_func(args):
         p_t, v_t, act_t, rew_t = args
