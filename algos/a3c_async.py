@@ -159,6 +159,7 @@ if __name__ == "__main__":
             if done_rewards:
                 summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
                 summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
+                summary_value("reward_episode_min", np.min(done_rewards), summary_writer, iter_idx)
 
             summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
             summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
