@@ -1,5 +1,5 @@
 # Atari-specific options for environments
-from keras.layers import Input, Flatten, Conv2D, MaxPooling2D, Dense, BatchNormalization
+from keras.layers import Input, Flatten, Conv2D, MaxPooling2D, Dense
 import numpy as np
 import cv2
 
@@ -18,7 +18,6 @@ def net_input():
     :return: input_tensor, output_tensor
     """
     in_t = Input(shape=INPUT_SHAPE, name='input')
-    in_t = BatchNormalization(name='input_norm')(in_t)
     out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(in_t)
     out_t = MaxPooling2D((2, 2))(out_t)
     out_t = Conv2D(32, 5, 5, activation='relu', border_mode='same')(out_t)
@@ -27,7 +26,6 @@ def net_input():
     out_t = MaxPooling2D((2, 2))(out_t)
     out_t = Conv2D(64, 3, 3, activation='relu', border_mode='same')(out_t)
     out_t = Flatten(name='flat')(out_t)
-    out_t = BatchNormalization(name='l1_norm')(out_t)
     out_t = Dense(512, name='l1', activation='relu')(out_t)
 
     return in_t, out_t
