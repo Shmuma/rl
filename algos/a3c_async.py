@@ -174,6 +174,7 @@ if __name__ == "__main__":
             summary_writer.flush()
             bench_samples = 0
             bench_ts = time.time()
+            logger.info("Iter %d", iter_idx)
 
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             players.push_model_weights(value_policy_model.get_weights())

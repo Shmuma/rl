@@ -27,7 +27,7 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
     """
     action_t = Input(batch_shape=(None, 1), name='action', dtype='int32')
     reward_t = Input(batch_shape=(None, 1), name="reward")
-    reward_t = BatchNormalization()(reward_t)
+    reward_norm_t = BatchNormalization(name='reward_norm')(reward_t)
 
     def policy_loss_func(args):
         p_t, v_t, act_t, rew_t = args
@@ -45,11 +45,12 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
         tf.summary.scalar("loss_policy", K.mean(-res_t))
         return full_policy_loss_t
 
-    loss_args = [policy_t, value_t, action_t, reward_t]
+    loss_args = [policy_t, value_t, action_t, reward_norm_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
 
     tf.summary.scalar("value_mean", K.mean(value_t))
     tf.summary.scalar("reward_mean", K.mean(reward_t))
+    tf.summary.scalar("reward_norm_mean", K.mean(reward_t))
 
     return action_t, reward_t, policy_loss_t
 
