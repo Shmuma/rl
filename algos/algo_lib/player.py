@@ -20,7 +20,6 @@ class Player:
         self.max_steps = max_steps
         self.player_index = player_index
 
-        self.adv = []
         self.done_rewards = []
 
     @classmethod
@@ -50,10 +49,8 @@ class Player:
 
         if done or self.step_index > self.max_steps:
             self.state = self.state_filter(self.env.reset())
-            logging.info("%3d: Episode done @ step %5d, sum reward %d, mean adv %f",
-                         self.player_index, self.step_index, int(self.episode_reward),
-                         np.mean(self.adv))
-            self.adv = []
+            logging.info("%3d: Episode done @ step %5d, sum reward %d",
+                         self.player_index, self.step_index, int(self.episode_reward))
             self.done_rewards.append(self.episode_reward)
             self.episode_reward = 0.0
             self.step_index = 0
@@ -77,9 +74,7 @@ class Player:
 
         for state, action, reward, value in reversed(self.memory):
             sum_r = reward + sum_r * self.gamma
-            advantage = sum_r - value
-            result.append((state, action, sum_r, advantage))
-            self.adv.append(advantage)
+            result.append((state, action, sum_r))
 
         self.memory = [] if is_done else [last_item]
         return result
