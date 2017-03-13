@@ -33,11 +33,11 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
     tf.summary.scalar("reward_rms", K.sqrt(K.mean(K.square(reward_t))))
 
     def policy_loss_func(args):
-        p_t, act_t, rew_t, val_t = args
+        p_t, act_t, rew_t = args
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
         p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
-        adv_t = (rew_t - K.stop_gradient(val_t))
+        adv_t = (rew_t - K.stop_gradient(value_t))
         tf.summary.scalar("advantage_mean", K.mean(adv_t))
         tf.summary.scalar("advantage_rms", K.sqrt(K.mean(K.square(adv_t))))
 
@@ -48,7 +48,7 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
         tf.summary.scalar("loss_policy", K.sum(-res_t))
         return full_policy_loss_t
 
-    loss_args = [policy_t, action_t, reward_t, value_t]
+    loss_args = [policy_t, action_t, reward_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
 
     return action_t, reward_t, policy_loss_t
