@@ -55,7 +55,7 @@ class AsyncPlayersSwarm:
         while len(batch) < self.batch_size:
             batch.append(self.samples_queue.get())
         states, actions, rewards = list(map(np.array, zip(*batch)))
-        return [states, actions, rewards], [rewards, rewards]
+        return [states, actions, rewards], [rewards, rewards, rewards]
 
     def get_done_rewards(self):
         res = []
@@ -117,11 +117,17 @@ if __name__ == "__main__":
     value_policy_model.summary()
 
     loss_dict = {
+        'policy': lambda y_true, y_pred: tf.constant(0.0),
         'value': 'mse',
         'policy_loss': lambda y_true, y_pred: y_pred
     }
 
     value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)
+
+    input_t, conv_out_t = net_input()
+    n_actions = env.action_space.n
+    model = make_run_model(input_t, conv_out_t, n_actions)
+    model.summary()
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
