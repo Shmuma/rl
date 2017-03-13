@@ -57,8 +57,8 @@ class AsyncPlayersSwarm:
             batch.append(self.samples_queue.get())
         states, actions, rewards = list(map(np.array, zip(*batch)))
         # normalize rewards
-        rewards -= rewards.mean()
-        rewards /= (rewards.std() + K.epsilon())
+        # rewards -= rewards.mean()
+        # rewards /= (rewards.std() + K.epsilon())
         return [states, actions, rewards], [rewards, rewards, rewards]
 
     def get_done_rewards(self):
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                 summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
                 summary_value("reward_episode_min", np.min(done_rewards), summary_writer, iter_idx)
 
-            summary_value("rewards_norm_mean", np.mean(y_batch[0]), summary_writer, iter_idx)
+            # summary_value("rewards_norm_mean", np.mean(y_batch[0]), summary_writer, iter_idx)
             summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
             summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
             summary_value("loss", l_dict['loss'], summary_writer, iter_idx)
