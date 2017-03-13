@@ -41,16 +41,15 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
         res_t = adv_t * p_oh_t
         entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
         full_policy_loss_t = -res_t + entropy_beta * entropy_t
-        tf.summary.scalar("loss_entropy", K.sum(entropy_t))
-        tf.summary.scalar("loss_policy", K.sum(-res_t))
+        tf.summary.scalar("loss_entropy", K.mean(entropy_t))
+        tf.summary.scalar("loss_policy", K.mean(-res_t))
         return full_policy_loss_t
 
     loss_args = [policy_t, value_t, action_t, reward_t]
     policy_loss_t = Lambda(policy_loss_func, output_shape=(1,), name='policy_loss')(loss_args)
 
-    tf.summary.scalar("value", K.mean(value_t))
+    tf.summary.scalar("value_mean", K.mean(value_t))
     tf.summary.scalar("reward_mean", K.mean(reward_t))
-    tf.summary.scalar("reward_rms", K.sqrt(K.mean(K.square(reward_t))))
 
     return action_t, reward_t, policy_loss_t
 

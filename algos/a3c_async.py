@@ -168,9 +168,8 @@ if __name__ == "__main__":
                 summary_value("reward_episode_min", np.min(done_rewards), summary_writer, iter_idx)
 
             summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
-            summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
             summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
-            summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
+            summary_value("loss", l_dict['loss'], summary_writer, iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
             bench_samples = 0
@@ -178,7 +177,6 @@ if __name__ == "__main__":
 
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             players.push_model_weights(value_policy_model.get_weights())
-            logger.info("Models synchronized @ iter %d", iter_idx)
 
         if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
             value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
