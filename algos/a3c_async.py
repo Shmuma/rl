@@ -7,6 +7,7 @@ import multiprocessing as mp
 import queue
 
 import time
+import datetime
 import tensorflow as tf
 import keras.backend as K
 
@@ -55,6 +56,9 @@ class AsyncPlayersSwarm:
         while len(batch) < self.batch_size:
             batch.append(self.samples_queue.get())
         states, actions, rewards = list(map(np.array, zip(*batch)))
+        # normalize rewards
+        rewards -= rewards().mean()
+        rewards /= (rewards.std() + K.epsilon())
         return [states, actions, rewards], [rewards, rewards, rewards]
 
     def get_done_rewards(self):
@@ -167,14 +171,17 @@ if __name__ == "__main__":
                 summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
                 summary_value("reward_episode_min", np.min(done_rewards), summary_writer, iter_idx)
 
+            summary_value("rewards_norm_mean", np.mean(y_batch[0]), summary_writer, iter_idx)
             summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
             summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
             summary_value("loss", l_dict['loss'], summary_writer, iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
             bench_samples = 0
+            logger.info("Iter %d: speed %s per batch", iter_idx,
+                        datetime.timedelta(seconds=(time.time() - bench_ts)/SUMMARY_EVERY_BATCH))
             bench_ts = time.time()
-            logger.info("Iter %d", iter_idx)
+
 
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             players.push_model_weights(value_policy_model.get_weights())
