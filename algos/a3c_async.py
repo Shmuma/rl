@@ -57,7 +57,7 @@ class AsyncPlayersSwarm:
             batch.append(self.samples_queue.get())
         states, actions, rewards = list(map(np.array, zip(*batch)))
         # normalize rewards
-        rewards -= rewards().mean()
+        rewards -= rewards.mean()
         rewards /= (rewards.std() + K.epsilon())
         return [states, actions, rewards], [rewards, rewards, rewards]
 
