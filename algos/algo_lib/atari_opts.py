@@ -7,7 +7,7 @@ import cv2
 HISTORY_STEPS = 4
 
 # shape of prescaled image. If None, no prescaling will be performed
-IMAGE_RESCALE = (84, 84)
+IMAGE_RESCALE = (64, 64)
 
 INPUT_SHAPE = IMAGE_RESCALE + (HISTORY_STEPS*3,)
 
