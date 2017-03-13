@@ -6,11 +6,13 @@ class Player:
     """
     Simple syncronous pool of players
     """
-    def __init__(self, env, reward_steps, gamma, max_steps, player_index):
+    def __init__(self, env, reward_steps, gamma, max_steps, player_index, state_filter=lambda x: x):
         self.env = env
         self.reward_steps = reward_steps
         self.gamma = gamma
-        self.state = env.reset()
+        self.state_filter = state_filter
+
+        self.state = self.state_filter(env.reset())
 
         self.memory = []
         self.episode_reward = 0.0
@@ -43,11 +45,11 @@ class Player:
         new_state, reward, done, _ = self.env.step(action)
         self.episode_reward += reward
         self.memory.append((self.state, action, reward, value))
-        self.state = new_state
+        self.state = self.state_filter(new_state)
         self.step_index += 1
 
         if done or self.step_index > self.max_steps:
-            self.state = self.env.reset()
+            self.state = self.state_filter(self.env.reset())
             logging.info("%3d: Episode done @ step %5d, sum reward %d, mean adv %f",
                          self.player_index, self.step_index, int(self.episode_reward),
                          np.mean(self.adv))
