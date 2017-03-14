@@ -27,7 +27,7 @@ def HistoryWrapper(steps):
 
         def _step(self, action):
             obs, reward, done, info = self.env.step(action)
-            self.history.pop()
+            self.history.popleft()
             self.history.append(obs)
             return self.history, reward, done, info
 
