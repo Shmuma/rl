@@ -5,10 +5,10 @@ import numpy as np
 import cv2
 
 # how many steps to keep in input shape
-HISTORY_STEPS = 4
+HISTORY_STEPS = 2
 
 # shape of prescaled image. If None, no prescaling will be performed
-IMAGE_RESCALE = (64, 64)
+IMAGE_RESCALE = (84, 84)
 
 INPUT_SHAPE = IMAGE_RESCALE + (HISTORY_STEPS*3,)
 
