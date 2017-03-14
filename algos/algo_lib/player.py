@@ -99,5 +99,7 @@ def generate_batches(model, players, batch_size):
         samples.extend(Player.step_players(model, players))
         while len(samples) >= batch_size:
             states, actions, rewards = list(map(np.array, zip(*samples[:batch_size])))
+            rewards -= rewards.mean()
+            rewards /= (rewards.std())
             yield [states, actions, rewards], [rewards, rewards]
             samples = samples[batch_size:]
