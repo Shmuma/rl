@@ -21,8 +21,8 @@ from algo_lib.player import Player
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-PLAYERS_SWARMS = 8
-PLAYERS_PER_SWARM = 6
+PLAYERS_SWARMS = 4
+PLAYERS_PER_SWARM = 12
 BATCH_SIZE = 128
 
 SUMMARY_EVERY_BATCH = 100
