@@ -98,6 +98,6 @@ def generate_batches(model, players, batch_size):
     while True:
         samples.extend(Player.step_players(model, players))
         while len(samples) >= batch_size:
-            states, actions, rewards, advantages = list(map(np.array, zip(*samples[:batch_size])))
-            yield [states, actions, advantages], [rewards, rewards]
+            states, actions, rewards = list(map(np.array, zip(*samples[:batch_size])))
+            yield [states, actions, rewards], [rewards, rewards]
             samples = samples[batch_size:]

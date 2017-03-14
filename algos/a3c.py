@@ -8,12 +8,10 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 import tensorflow as tf
-from keras.models import Model
-from keras.layers import Input, Dense, Flatten, Lambda
+from keras.layers import Input, Dense, Flatten
 from keras.optimizers import Adam, Adagrad, RMSprop
-from keras import backend as K
 
-from algo_lib.common import make_env, summarize_gradients, summary_value
+from algo_lib.common import make_env, summarize_gradients, summary_value, HistoryWrapper
 from algo_lib.a3c import make_models
 from algo_lib.player import Player, generate_batches
 
@@ -32,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--name", required=True, help="Run name")
     args = parser.parse_args()
 
-    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
+    env = make_env(args.env, args.monitor, wrappers=(HistoryWrapper(HISTORY_STEPS),))
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
@@ -55,7 +53,7 @@ if __name__ == "__main__":
     value_policy_model.compile(optimizer=RMSprop(lr=0.00001, clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
-    summary_writer = tf.summary.FileWriter("logs/" + args.name)
+    summary_writer = tf.summary.FileWriter("logs-a3c/" + args.name)
     summarize_gradients(value_policy_model)
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
