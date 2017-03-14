@@ -11,6 +11,8 @@ logger.setLevel(logging.INFO)
 import tensorflow as tf
 from keras.layers import Input, Dense, Flatten
 from keras.optimizers import Adam, Adagrad, RMSprop
+from keras.objectives import mean_squared_error
+import keras.backend as K
 
 from algo_lib.common import make_env, summarize_gradients, summary_value, HistoryWrapper
 from algo_lib.a3c import make_models
@@ -44,16 +46,16 @@ if __name__ == "__main__":
     l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='in_l1')(fl_t)
     out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='in_l2')(l1_t)
 
-    run_model, value_policy_model = make_models(in_t, out_t, n_actions, entropy_beta=0.01)
+    run_model, value_policy_model = make_models(in_t, out_t, n_actions, entropy_beta=0.1)
     value_policy_model.summary()
 
     loss_dict = {
-        'value': 'mae',
+        'value': lambda y_true, y_pred: K.sqrt(mean_squared_error(y_true, y_pred)),
         'policy_loss': lambda y_true, y_pred: y_pred
     }
     # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     #Adam(lr=0.0001, clipnorm=0.1)
-    value_policy_model.compile(optimizer=Adam(lr=0.0001, clipnorm=0.1), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adam(lr=0.0001, clipnorm=0.1, clipvalue=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs-a3c/" + args.name)
@@ -62,8 +64,8 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=50, gamma=0.99,
-               max_steps=40000, player_index=idx)
+        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=19, gamma=0.99,
+               max_steps=500, player_index=idx)
         for idx in range(10)
     ]
 
