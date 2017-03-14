@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
+import os
 import argparse
 import logging
 import numpy as np
@@ -19,7 +20,8 @@ HISTORY_STEPS = 4
 SIMPLE_L1_SIZE = 50
 SIMPLE_L2_SIZE = 50
 
-SUMMARY_EVERY_BATCH = 10
+SUMMARY_EVERY_BATCH = 100
+SAVE_MODEL_EVERY_BATCH = 3000
 
 
 if __name__ == "__main__":
@@ -75,11 +77,16 @@ if __name__ == "__main__":
             if done_rewards:
                 summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
                 summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
+                summary_value("reward_episode_min", np.max(done_rewards), summary_writer, iter_idx)
 
             summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
             summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
-            summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
+            summary_value("loss", l_dict['loss'], summary_writer, iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
+
+        if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
+            value_policy_model.save(os.path.join("logs-a3c", args.name, "model-%06d.h5" % iter_idx))
+
         run_model.set_weights(value_policy_model.get_weights())
     pass
