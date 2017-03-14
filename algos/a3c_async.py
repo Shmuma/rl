@@ -59,7 +59,7 @@ class AsyncPlayersSwarm:
         # normalize rewards
         # rewards -= rewards.mean()
         # rewards /= (rewards.std() + K.epsilon())
-        return [states, actions, rewards], [rewards, rewards, rewards]
+        return [states, actions, rewards], [rewards, rewards]
 
     def get_done_rewards(self):
         res = []
@@ -122,9 +122,8 @@ if __name__ == "__main__":
     value_policy_model.summary()
 
     loss_dict = {
-        'policy': lambda y_true, y_pred: tf.constant(0.0),
+        'policy_loss': lambda y_true, y_pred: y_pred,
         'value': 'mse',
-        'policy_loss': lambda y_true, y_pred: y_pred
     }
 
     value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)

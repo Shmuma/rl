@@ -61,12 +61,12 @@ def make_run_model(input_t, conv_output_t, n_actions):
 def make_train_model(input_t, conv_output_t, n_actions):
     policy_t, value_t = net_prediction(conv_output_t, n_actions)
     action_t, reward_t, policy_loss_t = net_loss(policy_t, value_t, n_actions)
-    return Model(input=[input_t, action_t, reward_t], output=[policy_t, value_t, policy_loss_t])
+    return Model(input=[input_t, action_t, reward_t], output=[policy_loss_t, value_t])
 
 
 def make_models(input_t, conv_output_t, n_actions, **loss_opts):
     policy_t, value_t = net_prediction(conv_output_t, n_actions)
     action_t, reward_t, policy_loss_t = net_loss(policy_t, value_t, n_actions, **loss_opts)
     run_model = Model(input=input_t, output=[policy_t, value_t])
-    train_model = Model(input=[input_t, action_t, reward_t], output=[value_t, policy_loss_t])
+    train_model = Model(input=[input_t, action_t, reward_t], output=[policy_loss_t, value_t])
     return run_model, train_model
