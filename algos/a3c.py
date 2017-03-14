@@ -62,7 +62,7 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=5, gamma=0.99,
+        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=50, gamma=0.99,
                max_steps=40000, player_index=idx)
         for idx in range(10)
     ]
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             if done_rewards:
                 summary_value("reward_episode_mean", np.mean(done_rewards), summary_writer, iter_idx)
                 summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
-                summary_value("reward_episode_min", np.max(done_rewards), summary_writer, iter_idx)
+                summary_value("reward_episode_min", np.min(done_rewards), summary_writer, iter_idx)
 
             summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
             summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
