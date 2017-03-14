@@ -38,15 +38,17 @@ def HistoryWrapper(steps):
     return _HistoryWrapper
 
 
-def make_env(env_name, monitor_dir=None, history_steps=2):
+def make_env(env_name, monitor_dir=None, wrappers=()):
     """
-    Make gym environment with optional monitor and given amount of history steps
+    Make gym environment with optional monitor
     :param env_name: name of the environment to create
     :param monitor_dir: optional directory to save monitor results
-    :param history_steps: count of steps to preserve as history in state
+    :param wrappers: list of optional Wrapper object instances
     :return: environment object
     """
-    env = HistoryWrapper(history_steps)(gym.make(env_name))
+    env = gym.make(env_name)
+    for wrapper in wrappers:
+        env = wrapper(env)
     if monitor_dir:
         env = gym.wrappers.Monitor(env, monitor_dir)
     return env

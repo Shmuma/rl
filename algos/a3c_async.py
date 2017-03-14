@@ -13,8 +13,8 @@ import keras.backend as K
 
 from keras.optimizers import Adam
 
-from algo_lib.common import make_env, summarize_gradients, summary_value
-from algo_lib.atari_opts import net_input, HISTORY_STEPS, preprocess_state
+from algo_lib.common import make_env, HistoryWrapper, summarize_gradients, summary_value
+from algo_lib.atari_opts import net_input, RescaleWrapper, HISTORY_STEPS
 from algo_lib.a3c import make_train_model, make_run_model
 from algo_lib.player import Player
 
@@ -31,8 +31,8 @@ SAVE_MODEL_EVERY_BATCH = 3000
 
 
 class AsyncPlayersSwarm:
-    def __init__(self, swarms_count, swarm_size, env_name, history_steps, gamma,
-                 reward_steps, batch_size, max_steps, state_filter):
+    def __init__(self, swarms_count, swarm_size, env_name, env_wrappers, gamma,
+                 reward_steps, batch_size, max_steps):
         self.batch_size = batch_size
         self.samples_queue = mp.Queue(maxsize=batch_size * 2)
         self.done_rewards_queue = mp.Queue()
@@ -41,7 +41,7 @@ class AsyncPlayersSwarm:
         for _ in range(swarms_count):
             ctrl_queue = mp.Queue()
             self.control_queues.append(ctrl_queue)
-            args = (swarm_size, env_name, history_steps, gamma, reward_steps, max_steps, state_filter,
+            args = (swarm_size, env_name, env_wrappers, gamma, reward_steps, max_steps,
                     ctrl_queue, self.samples_queue, self.done_rewards_queue)
             proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.processes.append(proc)
@@ -71,12 +71,11 @@ class AsyncPlayersSwarm:
         return res
 
     @classmethod
-    def player(cls, players_count, env_name, history_steps, gamma, reward_steps,
-               max_steps, state_filter, ctrl_queue, out_queue, done_rewards_queue):
+    def player(cls, players_count, env_name, env_wrappers, gamma, reward_steps,
+               max_steps, ctrl_queue, out_queue, done_rewards_queue):
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
-            players = [Player(make_env(env_name, history_steps=history_steps), reward_steps,
-                              gamma, max_steps, idx, state_filter)
+            players = [Player(make_env(env_name, wrappers=env_wrappers), reward_steps, gamma, max_steps, idx)
                        for idx in range(players_count)]
             input_t, conv_out_t = net_input()
             n_actions = env.action_space.n
@@ -110,7 +109,9 @@ if __name__ == "__main__":
     # config.gpu_options.per_process_gpu_memory_fraction = 0.2
     # K.set_session(tf.Session(config=config))
 
-    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
+    # order is important: rescale wrapper depends on history to be passed to it
+    env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
+    env = make_env(args.env, args.monitor, wrappers=env_wrappers)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
@@ -139,8 +140,8 @@ if __name__ == "__main__":
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
-    players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, HISTORY_STEPS, args.gamma, args.steps,
-                                max_steps=40000, batch_size=BATCH_SIZE, state_filter=preprocess_state)
+    players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, env_wrappers, args.gamma, args.steps,
+                                max_steps=40000, batch_size=BATCH_SIZE)
     iter_idx = 0
     bench_samples = 0
     bench_ts = time.time()
