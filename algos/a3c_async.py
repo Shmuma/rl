@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import gym
-import universe
 import os
 import argparse
 import logging

@@ -4,6 +4,7 @@ import numpy as np
 
 import keras.backend as K
 import tensorflow as tf
+import collections
 
 
 def HistoryWrapper(steps):
@@ -17,20 +18,22 @@ def HistoryWrapper(steps):
             self.steps = steps
             self.history = self._make_history()
 
-        def _make_history(self):
-            return [np.zeros(shape=self.env.observation_space.shape) for _ in range(steps)]
+        def _make_history(self, last_item = None):
+            size = self.steps if last_item is None else self.steps-1
+            res = collections.deque([np.zeros(shape=self.env.observation_space.shape)] * size)
+            if last_item is not None:
+                res.append(last_item)
+            return res
 
         def _step(self, action):
             obs, reward, done, info = self.env.step(action)
-            self.history.pop(0)
+            self.history.pop()
             self.history.append(obs)
-            return np.array(self.history), reward, done, info
+            return self.history, reward, done, info
 
         def _reset(self):
-            self.history = self._make_history()
-            self.history.pop(0)
-            self.history.append(self.env.reset())
-            return np.array(self.history)
+            self.history = self._make_history(last_item=self.env.reset())
+            return self.history
 
     return _HistoryWrapper
 
