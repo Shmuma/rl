@@ -44,7 +44,7 @@ if __name__ == "__main__":
     l1_t = Dense(SIMPLE_L1_SIZE, activation='relu', name='in_l1')(fl_t)
     out_t = Dense(SIMPLE_L2_SIZE, activation='relu', name='in_l2')(l1_t)
 
-    run_model, value_policy_model = make_models(in_t, out_t, n_actions, entropy_beta=0.001)
+    run_model, value_policy_model = make_models(in_t, out_t, n_actions, entropy_beta=0.01)
     value_policy_model.summary()
 
     loss_dict = {
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     }
     # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     #Adam(lr=0.0001, clipnorm=0.1)
-    value_policy_model.compile(optimizer=Adagrad(clipnorm=0.1), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adam(lr=0.0001, clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs-a3c/" + args.name)
