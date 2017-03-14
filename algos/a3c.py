@@ -30,7 +30,8 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--name", required=True, help="Run name")
     args = parser.parse_args()
 
-    env = make_env(args.env, args.monitor, wrappers=(HistoryWrapper(HISTORY_STEPS),))
+    env_wrappers = (HistoryWrapper(HISTORY_STEPS),)
+    env = make_env(args.env, args.monitor, wrappers=env_wrappers)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
@@ -45,12 +46,12 @@ if __name__ == "__main__":
     value_policy_model.summary()
 
     loss_dict = {
-        'value': 'mse',
+        'value': 'mae',
         'policy_loss': lambda y_true, y_pred: y_pred
     }
     # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     #Adam(lr=0.0001, clipnorm=0.1)
-    value_policy_model.compile(optimizer=RMSprop(lr=0.0001, clipnorm=0.1), loss=loss_dict)
+    value_policy_model.compile(optimizer=Adagrad(clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs-a3c/" + args.name)
@@ -59,7 +60,8 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(env, reward_steps=5, gamma=0.99, max_steps=40000, player_index=idx)
+        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=5, gamma=0.99,
+               max_steps=40000, player_index=idx)
         for idx in range(10)
     ]
 
