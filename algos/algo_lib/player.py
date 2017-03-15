@@ -1,5 +1,11 @@
 import logging
 import numpy as np
+import uuid
+
+
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
 
 
 class Player:
@@ -29,12 +35,15 @@ class Player:
         :param players: player instances
         :return: list of samples
         """
-        probs, values = model.predict_on_batch(np.array([
+        input = np.array([
             p.state for p in players
-        ]))
+        ])
+        probs, values = model.predict_on_batch(input)
         result = []
+
         for idx, player in enumerate(players):
-            action = np.random.choice(len(probs[idx]), p=probs[idx])
+            prb = softmax(probs[idx])
+            action = np.random.choice(len(prb), p=prb)
             result.extend(player.step(action, values[idx][0]))
         return result
 

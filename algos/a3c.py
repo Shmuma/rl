@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # Quick-n-dirty implementation of Advantage Actor-Critic method from https://arxiv.org/abs/1602.01783
+import uuid
 import os
 import argparse
 import logging
 import numpy as np
+import pickle
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -70,7 +72,25 @@ if __name__ == "__main__":
     ]
 
     for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, 128)):
+        pre_weights = value_policy_model.get_weights()
         l = value_policy_model.train_on_batch(x_batch, y_batch)
+        post_weights = value_policy_model.get_weights()
+
+        if any(map(lambda w: np.isnan(w).any(), post_weights)):
+            logging.info("NaN in weights, iter %d, loss %s", iter_idx, l)
+            name = str(uuid.uuid4())
+            value_policy_model.save(name + "-nan-model.h5")
+            value_policy_model.set_weights(pre_weights)
+            value_policy_model.save(name + "-pre-model.h5")
+            with open(name + "-out-x.dat", "wb") as fd:
+                pickle.dump(x_batch, fd)
+            with open(name + "-out-y.dat", "wb") as fd:
+                pickle.dump(y_batch, fd)
+            break
+
+        logger.info("Iteration %d, loss: %s", iter_idx, l[:-1])
+        if np.isnan(l[:-1]).any():
+            break
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
             l_dict = dict(zip(value_policy_model.metrics_names, l))
@@ -91,4 +111,11 @@ if __name__ == "__main__":
             value_policy_model.save(os.path.join("logs-a3c", args.name, "model-%06d.h5" % iter_idx))
 
         run_model.set_weights(value_policy_model.get_weights())
+        #     name = str(uuid.uuid4())
+        #     value_policy_model.save(name + "-out-model.h5")
+        #     with open(name + "-out-x.dat", "wb") as fd:
+        #         pickle.dump(x_batch, fd)
+        #     with open(name + "-out-y.dat", "wb") as fd:
+        #         pickle.dump(y_batch, fd)
+        #     break
     pass

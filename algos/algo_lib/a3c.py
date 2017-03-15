@@ -11,7 +11,7 @@ def net_prediction(input_t, n_actions):
     :return: policy_tensor and value_tensor
     """
     value_t = Dense(1, name='value')(input_t)
-    policy_t = Dense(n_actions, activation='softmax', name='policy')(input_t)
+    policy_t = Dense(n_actions, name='policy')(input_t)
 
     return policy_t, value_t
 
@@ -30,15 +30,17 @@ def net_loss(policy_t, value_t, n_actions, entropy_beta=0.01):
 
     def policy_loss_func(args):
         p_t, v_t, act_t, rew_t = args
+        log_p_t = tf.nn.log_softmax(p_t)
+        sigm_p_t = K.softmax(p_t)
         oh_t = K.one_hot(act_t, n_actions)
         oh_t = K.squeeze(oh_t, 1)
-        p_oh_t = K.log(K.epsilon() + K.sum(oh_t * p_t, axis=-1, keepdims=True))
+        p_oh_t = K.sum(log_p_t * oh_t, axis=-1, keepdims=True)
         adv_t = (rew_t - K.stop_gradient(v_t))
         tf.summary.scalar("advantage_mean", K.mean(adv_t))
         tf.summary.scalar("advantage_rms", K.sqrt(K.mean(K.square(adv_t))))
 
         res_t = adv_t * p_oh_t
-        entropy_t = K.sum(p_t * K.log(K.epsilon() + p_t), axis=-1, keepdims=True)
+        entropy_t = K.sum(sigm_p_t * log_p_t, axis=-1, keepdims=True)
         full_policy_loss_t = -res_t + entropy_beta * entropy_t
         tf.summary.scalar("loss_entropy", K.mean(entropy_t))
         tf.summary.scalar("loss_policy", K.mean(-res_t))
