@@ -52,12 +52,12 @@ if __name__ == "__main__":
     value_policy_model.summary()
 
     loss_dict = {
-        'value': lambda y_true, y_pred: K.sqrt(mean_squared_error(y_true, y_pred)),
+        'value': lambda y_true, y_pred: K.sqrt(mean_squared_error(y_true, y_pred) + K.epsilon()),
         'policy_loss': lambda y_true, y_pred: y_pred
     }
     # Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     #Adam(lr=0.0001, clipnorm=0.1)
-    value_policy_model.compile(optimizer=Adam(lr=0.0001, clipnorm=0.1, clipvalue=0.1), loss=loss_dict)
+    value_policy_model.compile(optimizer=RMSprop(lr=0.0001, clipnorm=0.1), loss=loss_dict)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs-a3c/" + args.name)
@@ -66,8 +66,8 @@ if __name__ == "__main__":
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
     players = [
-        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=19, gamma=0.99,
-               max_steps=500, player_index=idx)
+        Player(make_env(args.env, args.monitor, wrappers=env_wrappers), reward_steps=20, gamma=0.99,
+               max_steps=40000, player_index=idx)
         for idx in range(10)
     ]
 
@@ -76,19 +76,19 @@ if __name__ == "__main__":
         l = value_policy_model.train_on_batch(x_batch, y_batch)
         post_weights = value_policy_model.get_weights()
 
-        if any(map(lambda w: np.isnan(w).any(), post_weights)):
-            logging.info("NaN in weights, iter %d, loss %s", iter_idx, l)
-            name = str(uuid.uuid4())
-            value_policy_model.save(name + "-nan-model.h5")
-            value_policy_model.set_weights(pre_weights)
-            value_policy_model.save(name + "-pre-model.h5")
-            with open(name + "-out-x.dat", "wb") as fd:
-                pickle.dump(x_batch, fd)
-            with open(name + "-out-y.dat", "wb") as fd:
-                pickle.dump(y_batch, fd)
-            break
+        # if any(map(lambda w: np.isnan(w).any(), post_weights)):
+        #     logging.info("NaN in weights, iter %d, loss %s", iter_idx, l)
+        #     name = str(uuid.uuid4())
+        #     value_policy_model.save(name + "-nan-model.h5")
+        #     value_policy_model.set_weights(pre_weights)
+        #     value_policy_model.save(name + "-pre-model.h5")
+        #     with open(name + "-out-x.dat", "wb") as fd:
+        #         pickle.dump(x_batch, fd)
+        #     with open(name + "-out-y.dat", "wb") as fd:
+        #         pickle.dump(y_batch, fd)
+        #     break
 
-        logger.info("Iteration %d, loss: %s", iter_idx, l[:-1])
+        # logger.info("Iteration %d, loss: %s", iter_idx, l[:-1])
         if np.isnan(l[:-1]).any():
             break
 
@@ -110,7 +110,8 @@ if __name__ == "__main__":
         if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
             value_policy_model.save(os.path.join("logs-a3c", args.name, "model-%06d.h5" % iter_idx))
 
-        run_model.set_weights(value_policy_model.get_weights())
+        if iter_idx % 20 == 0:
+            run_model.set_weights(value_policy_model.get_weights())
         #     name = str(uuid.uuid4())
         #     value_policy_model.save(name + "-out-model.h5")
         #     with open(name + "-out-x.dat", "wb") as fd:
