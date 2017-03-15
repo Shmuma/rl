@@ -34,7 +34,7 @@ class AsyncPlayersSwarm:
     def __init__(self, swarms_count, swarm_size, env_name, env_wrappers, gamma,
                  reward_steps, batch_size, max_steps):
         self.batch_size = batch_size
-        self.samples_queue = mp.Queue(maxsize=batch_size * 2)
+        self.samples_queue = mp.Queue(maxsize=batch_size * 10)
         self.done_rewards_queue = mp.Queue()
         self.control_queues = []
         self.processes = []
