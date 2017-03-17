@@ -2,9 +2,10 @@
 import argparse
 import numpy as np
 
-from algo_lib.common import make_env
-from algo_lib.atari_opts import HISTORY_STEPS, net_input, preprocess_state
+from algo_lib.common import make_env, HistoryWrapper
+from algo_lib.atari_opts import HISTORY_STEPS, net_input, RescaleWrapper
 from algo_lib.a3c import make_run_model
+from algo_lib.player import softmax
 
 
 if __name__ == "__main__":
@@ -16,7 +17,8 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Show individual episode results")
     args = parser.parse_args()
 
-    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
+    env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
+    env = make_env(args.env, args.monitor, wrappers=env_wrappers)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
 
@@ -34,11 +36,11 @@ if __name__ == "__main__":
         step = 0
         while True:
             probs, value = model.predict_on_batch([
-                np.array([preprocess_state(state)]),
+                np.array([state]),
             ])
             probs, value = probs[0], value[0][0]
             # take action
-            action = np.random.choice(len(probs), p=probs)
+            action = np.random.choice(len(probs), p=softmax(probs))
             state, reward, done, _ = env.step(action)
             step += 1
             sum_reward += reward
