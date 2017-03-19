@@ -12,10 +12,11 @@ class Player:
     """
     Simple syncronous pool of players
     """
-    def __init__(self, env, reward_steps, gamma, max_steps, player_index):
+    def __init__(self, env, reward_steps, gamma, max_steps, player_index, reward_hook=None):
         self.env = env
         self.reward_steps = reward_steps
         self.gamma = gamma
+        self.reward_hook = reward_hook
 
         self.state = env.reset()
 
@@ -51,6 +52,8 @@ class Player:
         result = []
         new_state, reward, done, _ = self.env.step(action)
         self.episode_reward += reward
+        if self.reward_hook is not None:
+            reward = self.reward_hook(reward=reward, done=done, step=self.step_index)
         self.memory.append((self.state, action, reward, value))
         self.state = new_state
         self.step_index += 1
