@@ -7,6 +7,11 @@ from algo_lib.atari_opts import HISTORY_STEPS, net_input, RescaleWrapper
 from algo_lib.a3c import make_run_model
 from algo_lib.player import softmax
 
+try:
+    from keras.utils.visualize_util import plot
+except ImportError:
+    plot = None
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -15,6 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--monitor", help="Enable monitor and write to directory, default=disabled")
     parser.add_argument("--iters", type=int, default=100, help="Episodes to play, default=100")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Show individual episode results")
+    parser.add_argument("--netimg", action='store_true', default=False, help="Save image of network")
     args = parser.parse_args()
 
     env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
@@ -26,6 +32,9 @@ if __name__ == "__main__":
     model = make_run_model(input_t, conv_out_t, n_actions)
     model.summary()
     model.load_weights(args.model)
+
+    if plot is not None and args.netimg:
+        plot(model, to_file="net.png", show_layer_names=True, show_shapes=True)
 
     rewards = []
     steps = []
