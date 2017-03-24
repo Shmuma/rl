@@ -34,7 +34,7 @@ if __name__ == "__main__":
     model.load_weights(args.model)
 
     if plot is not None and args.netimg:
-        plot(model, to_file="net.png", show_layer_names=True, show_shapes=True)
+        plot(model, to_file="net.png", show_layer_names=False, show_shapes=False)
 
     rewards = []
     steps = []
