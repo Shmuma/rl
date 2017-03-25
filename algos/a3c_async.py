@@ -96,6 +96,7 @@ class AsyncPlayersSwarm:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--read", help="Model file name to read")
     parser.add_argument("-n", "--name", required=True, help="Run name")
     parser.add_argument("-e", "--env", default="Breakout-v0", help="Environment name to use")
     parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
@@ -138,6 +139,11 @@ if __name__ == "__main__":
     summarize_gradients(value_policy_model)
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
+
+    if args.read:
+        logger.info("Loading model from %s", args.read)
+        value_policy_model.load_weights(args.read)
+        model.load_weights(args.read)
 
     tweaker = ParamsTweaker()
     tweaker.add("lr", optimizer.lr)
