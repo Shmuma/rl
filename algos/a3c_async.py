@@ -131,8 +131,6 @@ if __name__ == "__main__":
 
     input_t, conv_out_t = net_input()
     n_actions = env.action_space.n
-    model = make_run_model(input_t, conv_out_t, n_actions)
-    model.summary()
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
@@ -143,7 +141,6 @@ if __name__ == "__main__":
     if args.read:
         logger.info("Loading model from %s", args.read)
         value_policy_model.load_weights(args.read)
-        model.load_weights(args.read)
 
     tweaker = ParamsTweaker()
     tweaker.add("lr", optimizer.lr)
