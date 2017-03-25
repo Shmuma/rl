@@ -1,6 +1,8 @@
+import os
 import gym
 import gym.wrappers
 import numpy as np
+import logging as log
 
 import keras.backend as K
 import tensorflow as tf
@@ -78,3 +80,31 @@ def summary_value(name, value, writer, step_no):
     summ_value.simple_value = value
     summ_value.tag = name
     writer.add_summary(summ, global_step=step_no)
+
+
+class ParamsTweaker:
+    logger = log.getLogger("ParamsTweaker")
+
+    def __init__(self, file_name="tweak_params.txt"):
+        self.file_name = file_name
+        self.params = {}
+
+    def add(self, name, var):
+        self.params[name] = var
+
+    def check(self):
+        if not os.path.exists(self.file_name):
+            return
+
+        self.logger.info("Tweak file detected: %s", self.file_name)
+        with open(self.file_name, "rt", encoding='utf-8') as fd:
+            for idx, l in enumerate(fd):
+                name, val = list(map(str.strip, l.split('=', maxsplit=2)))
+                var = self.params.get(name)
+                if not var:
+                    self.logger.info("Unknown param '%s' found in file at line %d, ignored", name, idx+1)
+                    continue
+                self.logger.info("Param %s <-- %s", name, val)
+                K.set_value(var, float(val))
+        os.remove(self.file_name)
+    pass

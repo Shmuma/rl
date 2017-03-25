@@ -9,11 +9,10 @@ import queue
 import time
 import datetime
 import tensorflow as tf
-import keras.backend as K
 
 from keras.optimizers import Adam
 
-from algo_lib.common import make_env, HistoryWrapper, summarize_gradients, summary_value
+from algo_lib.common import make_env, HistoryWrapper, summarize_gradients, summary_value, ParamsTweaker
 from algo_lib.atari_opts import net_input, RescaleWrapper, HISTORY_STEPS
 from algo_lib.a3c import make_train_model, make_run_model
 from algo_lib.player import Player
@@ -126,7 +125,8 @@ if __name__ == "__main__":
         'value': 'mse',
     }
 
-    value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)
+    optimizer = Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
+    value_policy_model.compile(optimizer=optimizer, loss=loss_dict)
 
     input_t, conv_out_t = net_input()
     n_actions = env.action_space.n
@@ -138,6 +138,9 @@ if __name__ == "__main__":
     summarize_gradients(value_policy_model)
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
+
+    tweaker = ParamsTweaker()
+    tweaker.add("lr", optimizer.lr)
 
     players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, env_wrappers, args.gamma, args.steps,
                                 max_steps=40000, batch_size=BATCH_SIZE)
@@ -188,3 +191,5 @@ if __name__ == "__main__":
 
         if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
             value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
+
+        tweaker.check()
