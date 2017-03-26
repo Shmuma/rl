@@ -29,8 +29,14 @@ SYNC_MODEL_EVERY_BATCH = 1
 SAVE_MODEL_EVERY_BATCH = 3000
 
 
+def create_env(name, monitor=None):
+    env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
+    return make_env(name, monitor, wrappers=env_wrappers)
+
+
+
 class AsyncPlayersSwarm:
-    def __init__(self, swarms_count, swarm_size, env_name, env_wrappers, gamma,
+    def __init__(self, swarms_count, swarm_size, env_name, gamma,
                  reward_steps, batch_size, max_steps):
         self.batch_size = batch_size
         self.samples_queue = mp.Queue(maxsize=batch_size * 10)
@@ -40,7 +46,7 @@ class AsyncPlayersSwarm:
         for _ in range(swarms_count):
             ctrl_queue = mp.Queue()
             self.control_queues.append(ctrl_queue)
-            args = (swarm_size, env_name, env_wrappers, gamma, reward_steps, max_steps,
+            args = (swarm_size, env_name, gamma, reward_steps, max_steps,
                     ctrl_queue, self.samples_queue, self.done_rewards_queue)
             proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.processes.append(proc)
@@ -70,14 +76,14 @@ class AsyncPlayersSwarm:
         return res
 
     @classmethod
-    def player(cls, players_count, env_name, env_wrappers, gamma, reward_steps,
+    def player(cls, players_count, env_name, gamma, reward_steps,
                max_steps, ctrl_queue, out_queue, done_rewards_queue):
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
-            players = [Player(make_env(env_name, wrappers=env_wrappers), reward_steps, gamma, max_steps, idx)
+            players = [Player(create_env(env_name), reward_steps, gamma, max_steps, idx)
                        for idx in range(players_count)]
             input_t, conv_out_t = net_input()
-            n_actions = env.action_space.n
+            n_actions = players[0].env.action_space.n
             model = make_run_model(input_t, conv_out_t, n_actions)
             while True:
                 # check ctrl queue for new model
@@ -94,12 +100,15 @@ class AsyncPlayersSwarm:
                     done_rewards_queue.put(rw)
 
 
+
 if __name__ == "__main__":
+    # work-around for TF multiprocessing problem
+    mp.set_start_method('spawn')
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--read", help="Model file name to read")
     parser.add_argument("-n", "--name", required=True, help="Run name")
     parser.add_argument("-e", "--env", default="Breakout-v0", help="Environment name to use")
-    parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=0.99")
     parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
@@ -110,8 +119,7 @@ if __name__ == "__main__":
     # K.set_session(tf.Session(config=config))
 
     # order is important: rescale wrapper depends on history to be passed to it
-    env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
-    env = make_env(args.env, args.monitor, wrappers=env_wrappers)
+    env = create_env(args.env)
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
@@ -145,8 +153,9 @@ if __name__ == "__main__":
     tweaker = ParamsTweaker()
     tweaker.add("lr", optimizer.lr)
 
-    players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, env_wrappers, args.gamma, args.steps,
+    players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, args.gamma, args.steps,
                                 max_steps=40000, batch_size=BATCH_SIZE)
+    players.push_model_weights(value_policy_model.get_weights())
     iter_idx = 0
     bench_samples = 0
     bench_ts = time.time()
