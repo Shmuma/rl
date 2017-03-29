@@ -60,9 +60,9 @@ def make_run_model(input_t, conv_output_t, n_actions):
     return Model(input=input_t, output=[policy_t, value_t])
 
 
-def make_train_model(input_t, conv_output_t, n_actions):
+def make_train_model(input_t, conv_output_t, n_actions, entropy_beta=0.01):
     policy_t, value_t = net_prediction(conv_output_t, n_actions)
-    action_t, reward_t, policy_loss_t = net_loss(policy_t, value_t, n_actions)
+    action_t, reward_t, policy_loss_t = net_loss(policy_t, value_t, n_actions, entropy_beta)
     return Model(input=[input_t, action_t, reward_t], output=[policy_loss_t, value_t])
 
 

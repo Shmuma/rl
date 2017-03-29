@@ -11,6 +11,7 @@ import datetime
 import tensorflow as tf
 
 from keras.optimizers import Adam
+import keras.backend as K
 
 from algo_lib.common import make_env, HistoryWrapper, summarize_gradients, summary_value, ParamsTweaker
 from algo_lib.atari_opts import net_input, RescaleWrapper, HISTORY_STEPS
@@ -32,7 +33,6 @@ SAVE_MODEL_EVERY_BATCH = 3000
 def create_env(name, monitor=None):
     env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
     return make_env(name, monitor, wrappers=env_wrappers)
-
 
 
 class AsyncPlayersSwarm:
@@ -100,7 +100,6 @@ class AsyncPlayersSwarm:
                     done_rewards_queue.put(rw)
 
 
-
 if __name__ == "__main__":
     # work-around for TF multiprocessing problem
     mp.set_start_method('spawn')
@@ -124,8 +123,10 @@ if __name__ == "__main__":
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
+    entropy_beta_t = K.variable(0.01, dtype='float32', name='entropy_beta')
+
     tr_input_t, tr_conv_out_t = net_input()
-    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions)
+    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=entropy_beta_t)
 
     value_policy_model.summary()
 
@@ -152,6 +153,7 @@ if __name__ == "__main__":
 
     tweaker = ParamsTweaker()
     tweaker.add("lr", optimizer.lr)
+    tweaker.add("beta", entropy_beta_t)
 
     players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, args.gamma, args.steps,
                                 max_steps=40000, batch_size=BATCH_SIZE)
@@ -196,7 +198,6 @@ if __name__ == "__main__":
             logger.info("Iter %d: speed %s per batch", iter_idx,
                         datetime.timedelta(seconds=(time.time() - bench_ts)/SUMMARY_EVERY_BATCH))
             bench_ts = time.time()
-
 
         if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
             players.push_model_weights(value_policy_model.get_weights())
