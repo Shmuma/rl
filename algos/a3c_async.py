@@ -123,10 +123,10 @@ if __name__ == "__main__":
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
 
-    entropy_beta_t = K.variable(0.01, dtype='float32', name='entropy_beta')
+#    entropy_beta_t = K.variable(0.01, dtype='float32', name='entropy_beta')
 
     tr_input_t, tr_conv_out_t = net_input()
-    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=entropy_beta_t)
+    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=0.001)
 
     value_policy_model.summary()
 
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     tweaker = ParamsTweaker()
     tweaker.add("lr", optimizer.lr)
-    tweaker.add("beta", entropy_beta_t)
+#    tweaker.add("beta", entropy_beta_t)
 
     players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, args.gamma, args.steps,
                                 max_steps=40000, batch_size=BATCH_SIZE)
