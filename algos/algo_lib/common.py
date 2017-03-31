@@ -164,6 +164,14 @@ class Configuration:
         return self.config.getint('training', 'batch_size')
 
     @property
+    def learning_rate(self):
+        return self.config.getfloat('training', 'learning_rate')
+
+    @property
+    def gradient_clip_norm(self):
+        return self.config.getfloat('training', 'grad_clip_norm')
+
+    @property
     def swarms_count(self):
         return self.config.getint('swarm', 'swarms')
 

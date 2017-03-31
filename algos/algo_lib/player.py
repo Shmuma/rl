@@ -4,6 +4,7 @@ import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
 import queue
+from keras.models import model_from_json
 
 
 def softmax(x):
@@ -121,9 +122,6 @@ def generate_batches(model, players, batch_size):
 
 
 class AsyncPlayersSwarm:
-    # work-around for TF multiprocessing problems
-    mp.set_start_method('spawn')
-
     def __init__(self, config, env_factory, model):
         self.config = config
         self.batch_size = config.batch_size
@@ -134,7 +132,7 @@ class AsyncPlayersSwarm:
         for _ in range(config.swarms_count):
             ctrl_queue = mp.Queue()
             self.control_queues.append(ctrl_queue)
-            args = (config, env_factory, model, ctrl_queue, self.samples_queue, self.done_rewards_queue)
+            args = (config, env_factory, model.to_json(), ctrl_queue, self.samples_queue, self.done_rewards_queue)
             proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.processes.append(proc)
             proc.start()
@@ -160,9 +158,10 @@ class AsyncPlayersSwarm:
         return res
 
     @classmethod
-    def player(cls, config, env_factory, model, ctrl_queue, out_queue, done_rewards_queue):
+    def player(cls, config, env_factory, model_json, ctrl_queue, out_queue, done_rewards_queue):
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
+            model = model_from_json(model_json)
             players = [Player(env_factory(), config.a3c_steps, config.a3c_gamma, config.max_steps, idx)
                        for idx in range(config.swarm_size)]
             # input_t, conv_out_t = atari.net_input(players[0].env)

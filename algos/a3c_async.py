@@ -7,6 +7,7 @@ import numpy as np
 import time
 import datetime
 import tensorflow as tf
+import multiprocessing as mp
 
 from keras.optimizers import Adam
 
@@ -24,8 +25,10 @@ SYNC_MODEL_EVERY_BATCH = 1
 SAVE_MODEL_EVERY_BATCH = 3000
 
 
-
 if __name__ == "__main__":
+    # work-around for TF multiprocessing problems
+    mp.set_start_method('spawn')
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--read", help="Model file name to read")
     parser.add_argument("-n", "--name", required=True, help="Run name")
@@ -41,17 +44,17 @@ if __name__ == "__main__":
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", config.env_name, state_shape, n_actions)
 
-    tr_input_t, tr_conv_out_t = atari.net_input(env)
-    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=config.a3c_beta)
+    input_t, conv_out_t = atari.net_input(env)
+    value_policy_model = make_train_model(input_t, conv_out_t, n_actions, entropy_beta=config.a3c_beta)
     value_policy_model.summary()
-    run_model = make_run_model(tr_input_t, tr_conv_out_t, n_actions)
+    run_model = make_run_model(input_t, conv_out_t, n_actions)
 
     loss_dict = {
         'policy_loss': lambda y_true, y_pred: y_pred,
         'value': 'mse',
     }
 
-    optimizer = Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
+    optimizer = Adam(lr=config.learning_rate, epsilon=1e-3, clipnorm=config.gradient_clip_norm)
     value_policy_model.compile(optimizer=optimizer, loss=loss_dict)
 
     # keras summary magic
