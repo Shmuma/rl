@@ -11,9 +11,11 @@ import datetime
 import tensorflow as tf
 
 from keras.optimizers import Adam
-import keras.backend as K
 
-from algo_lib.common import make_env, HistoryWrapper, summarize_gradients, summary_value, ParamsTweaker
+from algo_lib import common
+from algo_lib import atari_opts
+
+from algo_lib.common import summarize_gradients, summary_value, ParamsTweaker
 from algo_lib.atari_opts import net_input, RescaleWrapper, HISTORY_STEPS
 from algo_lib.a3c import make_train_model, make_run_model
 from algo_lib.player import Player
@@ -21,33 +23,27 @@ from algo_lib.player import Player
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-PLAYERS_SWARMS = 3
-PLAYERS_PER_SWARM = 16
-BATCH_SIZE = 128
+# PLAYERS_SWARMS = 3
+# PLAYERS_PER_SWARM = 16
+# BATCH_SIZE = 128
 
 SUMMARY_EVERY_BATCH = 100
 SYNC_MODEL_EVERY_BATCH = 1
 SAVE_MODEL_EVERY_BATCH = 3000
 
 
-def create_env(name, monitor=None):
-    env_wrappers = (HistoryWrapper(HISTORY_STEPS), RescaleWrapper())
-    return make_env(name, monitor, wrappers=env_wrappers)
-
-
 class AsyncPlayersSwarm:
-    def __init__(self, swarms_count, swarm_size, env_name, gamma,
-                 reward_steps, batch_size, max_steps):
-        self.batch_size = batch_size
-        self.samples_queue = mp.Queue(maxsize=batch_size * 10)
+    def __init__(self, config, env_factory):
+        self.config = config
+        self.batch_size = config.batch_size
+        self.samples_queue = mp.Queue(maxsize=self.batch_size * 10)
         self.done_rewards_queue = mp.Queue()
         self.control_queues = []
         self.processes = []
-        for _ in range(swarms_count):
+        for _ in range(config.swarms_count):
             ctrl_queue = mp.Queue()
             self.control_queues.append(ctrl_queue)
-            args = (swarm_size, env_name, gamma, reward_steps, max_steps,
-                    ctrl_queue, self.samples_queue, self.done_rewards_queue)
+            args = (config, env_factory, ctrl_queue, self.samples_queue, self.done_rewards_queue)
             proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
             self.processes.append(proc)
             proc.start()
@@ -61,9 +57,6 @@ class AsyncPlayersSwarm:
         while len(batch) < self.batch_size:
             batch.append(self.samples_queue.get())
         states, actions, rewards = list(map(np.array, zip(*batch)))
-        # normalize rewards
-        # rewards -= rewards.mean()
-        # rewards /= (rewards.std() + K.epsilon())
         return [states, actions, rewards], [rewards, rewards]
 
     def get_done_rewards(self):
@@ -76,12 +69,11 @@ class AsyncPlayersSwarm:
         return res
 
     @classmethod
-    def player(cls, players_count, env_name, gamma, reward_steps,
-               max_steps, ctrl_queue, out_queue, done_rewards_queue):
+    def player(cls, config, env_factory, ctrl_queue, out_queue, done_rewards_queue):
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         with tf.device("/cpu:0"):
-            players = [Player(create_env(env_name), reward_steps, gamma, max_steps, idx)
-                       for idx in range(players_count)]
+            players = [Player(env_factory(), config.a3c_steps, config.a3c_gamma, config.max_steps, idx)
+                       for idx in range(config.swarm_size)]
             input_t, conv_out_t = net_input()
             n_actions = players[0].env.action_space.n
             model = make_run_model(input_t, conv_out_t, n_actions)
@@ -101,32 +93,26 @@ class AsyncPlayersSwarm:
 
 
 if __name__ == "__main__":
-    # work-around for TF multiprocessing problem
+    # work-around for TF multiprocessing problems
     mp.set_start_method('spawn')
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--read", help="Model file name to read")
     parser.add_argument("-n", "--name", required=True, help="Run name")
-    parser.add_argument("-e", "--env", default="Breakout-v0", help="Environment name to use")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=0.99")
-    parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
+    parser.add_argument("-i", "--ini", required=True, help="Ini file with configuration")
     args = parser.parse_args()
 
-    # limit GPU memory
-    # config = tf.ConfigProto()
-    # config.gpu_options.per_process_gpu_memory_fraction = 0.2
-    # K.set_session(tf.Session(config=config))
+    config = common.Configuration(args.ini)
 
-    # order is important: rescale wrapper depends on history to be passed to it
-    env = create_env(args.env)
+    env_factory = common.EnvFactory(config, atari_opts.RescaleWrapper(config))
+
+    env = env_factory()
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
-    logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
+    logger.info("Created environment %s, state: %s, actions: %s", config.env_name, state_shape, n_actions)
 
-#    entropy_beta_t = K.variable(0.01, dtype='float32', name='entropy_beta')
-
-    tr_input_t, tr_conv_out_t = net_input()
-    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=0.001)
+    tr_input_t, tr_conv_out_t = net_input(env)
+    value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=config.a3c_beta)
 
     value_policy_model.summary()
 
@@ -138,8 +124,7 @@ if __name__ == "__main__":
     optimizer = Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     value_policy_model.compile(optimizer=optimizer, loss=loss_dict)
 
-    input_t, conv_out_t = net_input()
-    n_actions = env.action_space.n
+    input_t, conv_out_t = net_input(env)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)
@@ -155,8 +140,7 @@ if __name__ == "__main__":
     tweaker.add("lr", optimizer.lr)
 #    tweaker.add("beta", entropy_beta_t)
 
-    players = AsyncPlayersSwarm(PLAYERS_SWARMS, PLAYERS_PER_SWARM, args.env, args.gamma, args.steps,
-                                max_steps=40000, batch_size=BATCH_SIZE)
+    players = AsyncPlayersSwarm(config, env_factory)
     players.push_model_weights(value_policy_model.get_weights())
     iter_idx = 0
     bench_samples = 0
@@ -173,7 +157,7 @@ if __name__ == "__main__":
         train_ts = time.time()
         l = value_policy_model.train_on_batch(x_batch, y_batch)
         train_time += time.time() - train_ts
-        bench_samples += BATCH_SIZE
+        bench_samples += config.batch_size
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
             summary_value("time_batch", batch_time / SUMMARY_EVERY_BATCH, summary_writer, iter_idx)

@@ -1,5 +1,7 @@
 import os
+import configparser
 import gym
+import gym.spaces
 import gym.wrappers
 import numpy as np
 import logging as log
@@ -19,6 +21,14 @@ def HistoryWrapper(steps):
             super(_HistoryWrapper, self).__init__(env)
             self.steps = steps
             self.history = self._make_history()
+            self.observation_space = self._make_observation_space(steps, env.observation_space)
+
+        @staticmethod
+        def _make_observation_space(steps, orig_obs):
+            assert isinstance(orig_obs, gym.spaces.Box)
+            low = np.repeat(np.expand_dims(orig_obs.low, 0), steps, axis=0)
+            high = np.repeat(np.expand_dims(orig_obs.high, 0), steps, axis=0)
+            return gym.spaces.Box(low, high)
 
         def _make_history(self, last_item = None):
             size = self.steps if last_item is None else self.steps-1
@@ -108,3 +118,71 @@ class ParamsTweaker:
                 K.set_value(var, float(val))
         os.remove(self.file_name)
     pass
+
+
+class Configuration:
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self.config = configparser.ConfigParser()
+        if not self.config.read(file_name):
+            raise FileNotFoundError(file_name)
+
+    @property
+    def env_name(self):
+        return self.config.get('game', 'env')
+
+    @property
+    def history(self):
+        return self.config.getint('game', 'history', fallback=1)
+
+    @property
+    def image_shape(self):
+        x = self.config.getint('game', 'image_x')
+        y = self.config.getint('game', 'image_y')
+        if x is not None and y is not None:
+            return (x, y)
+        return None
+
+    @property
+    def max_steps(self):
+        return self.config.getint('game', 'max_steps')
+
+    @property
+    def a3c_beta(self):
+        return self.config.getfloat('a3c', 'entropy_beta')
+
+    @property
+    def a3c_steps(self):
+        return self.config.getint('a3c', 'reward_steps')
+
+    @property
+    def a3c_gamma(self):
+        return self.config.getfloat('a3c', 'gamma')
+
+    @property
+    def batch_size(self):
+        return self.config.getint('training', 'batch_size')
+
+    @property
+    def swarms_count(self):
+        return self.config.getint('swarm', 'swarms')
+
+    @property
+    def swarm_size(self):
+        return self.config.getint('swarm', 'swarm_size')
+
+
+class EnvFactory:
+    def __init__(self, config, *extra_wrappers):
+        self.config = config
+        self.extra_wrappers = extra_wrappers
+
+    def __call__(self):
+        env = gym.make(self.config.env_name)
+        history = self.config.history
+        if history > 1:
+            env = HistoryWrapper(history)(env)
+        if self.extra_wrappers:
+            for w in self.extra_wrappers:
+                env = w(env)
+        return env
