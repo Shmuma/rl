@@ -16,7 +16,6 @@ from algo_lib import common
 from algo_lib import atari_opts
 
 from algo_lib.common import summarize_gradients, summary_value, ParamsTweaker
-from algo_lib.atari_opts import net_input, RescaleWrapper, HISTORY_STEPS
 from algo_lib.a3c import make_train_model, make_run_model
 from algo_lib.player import Player
 
@@ -74,7 +73,7 @@ class AsyncPlayersSwarm:
         with tf.device("/cpu:0"):
             players = [Player(env_factory(), config.a3c_steps, config.a3c_gamma, config.max_steps, idx)
                        for idx in range(config.swarm_size)]
-            input_t, conv_out_t = net_input()
+            input_t, conv_out_t = atari_opts.net_input(players[0].env)
             n_actions = players[0].env.action_space.n
             model = make_run_model(input_t, conv_out_t, n_actions)
             while True:
@@ -111,7 +110,7 @@ if __name__ == "__main__":
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", config.env_name, state_shape, n_actions)
 
-    tr_input_t, tr_conv_out_t = net_input(env)
+    tr_input_t, tr_conv_out_t = atari_opts.net_input(env)
     value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=config.a3c_beta)
 
     value_policy_model.summary()
@@ -123,8 +122,6 @@ if __name__ == "__main__":
 
     optimizer = Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1)
     value_policy_model.compile(optimizer=optimizer, loss=loss_dict)
-
-    input_t, conv_out_t = net_input(env)
 
     # keras summary magic
     summary_writer = tf.summary.FileWriter("logs/" + args.name)

@@ -5,14 +5,6 @@ from keras.layers import Input, Flatten, Conv2D, MaxPooling2D, Dense
 import numpy as np
 import cv2
 
-# how many steps to keep in input shape
-HISTORY_STEPS = 2
-
-# shape of prescaled image. If None, no prescaling will be performed
-IMAGE_RESCALE = (84, 84)
-
-INPUT_SHAPE = IMAGE_RESCALE + (HISTORY_STEPS*3,)
-
 
 class RescaleWrapper:
     def __init__(self, config):
