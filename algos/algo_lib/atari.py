@@ -5,6 +5,18 @@ from keras.layers import Input, Flatten, Conv2D, MaxPooling2D, Dense
 import numpy as np
 import cv2
 
+from . import common
+
+
+class AtariEnvFactory:
+    def __init__(self, config):
+        self.config = config
+        self.common_factory = common.EnvFactory(config)
+
+    def __call__(self):
+        env = self.common_factory()
+        return RescaleWrapper(self.config)(env)
+
 
 class RescaleWrapper:
     def __init__(self, config):

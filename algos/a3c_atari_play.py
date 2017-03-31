@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 
 from algo_lib.common import make_env, HistoryWrapper
-from algo_lib.atari_opts import HISTORY_STEPS, net_input, RescaleWrapper
+from algo_lib.atari import HISTORY_STEPS, net_input, RescaleWrapper
 from algo_lib.a3c import make_run_model
 from algo_lib.player import softmax
 

@@ -173,16 +173,12 @@ class Configuration:
 
 
 class EnvFactory:
-    def __init__(self, config, *extra_wrappers):
+    def __init__(self, config):
         self.config = config
-        self.extra_wrappers = extra_wrappers
 
     def __call__(self):
         env = gym.make(self.config.env_name)
         history = self.config.history
         if history > 1:
             env = HistoryWrapper(history)(env)
-        if self.extra_wrappers:
-            for w in self.extra_wrappers:
-                env = w(env)
         return env

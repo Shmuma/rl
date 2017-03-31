@@ -13,7 +13,7 @@ import tensorflow as tf
 from keras.optimizers import Adam
 
 from algo_lib import common
-from algo_lib import atari_opts
+from algo_lib import atari
 
 from algo_lib.common import summarize_gradients, summary_value, ParamsTweaker
 from algo_lib.a3c import make_train_model, make_run_model
@@ -73,7 +73,7 @@ class AsyncPlayersSwarm:
         with tf.device("/cpu:0"):
             players = [Player(env_factory(), config.a3c_steps, config.a3c_gamma, config.max_steps, idx)
                        for idx in range(config.swarm_size)]
-            input_t, conv_out_t = atari_opts.net_input(players[0].env)
+            input_t, conv_out_t = atari.net_input(players[0].env)
             n_actions = players[0].env.action_space.n
             model = make_run_model(input_t, conv_out_t, n_actions)
             while True:
@@ -103,14 +103,14 @@ if __name__ == "__main__":
 
     config = common.Configuration(args.ini)
 
-    env_factory = common.EnvFactory(config, atari_opts.RescaleWrapper(config))
+    env_factory = atari.AtariEnvFactory(config)
 
     env = env_factory()
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
     logger.info("Created environment %s, state: %s, actions: %s", config.env_name, state_shape, n_actions)
 
-    tr_input_t, tr_conv_out_t = atari_opts.net_input(env)
+    tr_input_t, tr_conv_out_t = atari.net_input(env)
     value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions, entropy_beta=config.a3c_beta)
 
     value_policy_model.summary()
@@ -132,10 +132,6 @@ if __name__ == "__main__":
     if args.read:
         logger.info("Loading model from %s", args.read)
         value_policy_model.load_weights(args.read)
-
-    tweaker = ParamsTweaker()
-    tweaker.add("lr", optimizer.lr)
-#    tweaker.add("beta", entropy_beta_t)
 
     players = AsyncPlayersSwarm(config, env_factory)
     players.push_model_weights(value_policy_model.get_weights())
@@ -185,5 +181,3 @@ if __name__ == "__main__":
 
         if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
             value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
-
-        tweaker.check()
