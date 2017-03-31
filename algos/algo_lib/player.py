@@ -1,6 +1,9 @@
+import os
 import logging
 import numpy as np
-import uuid
+import multiprocessing as mp
+import tensorflow as tf
+import queue
 
 
 def softmax(x):
@@ -115,3 +118,66 @@ def generate_batches(model, players, batch_size):
             # rewards /= rewards.std()
             yield [states, actions, rewards], [rewards, rewards]
             samples = samples[batch_size:]
+
+
+class AsyncPlayersSwarm:
+    # work-around for TF multiprocessing problems
+    mp.set_start_method('spawn')
+
+    def __init__(self, config, env_factory, model):
+        self.config = config
+        self.batch_size = config.batch_size
+        self.samples_queue = mp.Queue(maxsize=self.batch_size * 10)
+        self.done_rewards_queue = mp.Queue()
+        self.control_queues = []
+        self.processes = []
+        for _ in range(config.swarms_count):
+            ctrl_queue = mp.Queue()
+            self.control_queues.append(ctrl_queue)
+            args = (config, env_factory, model, ctrl_queue, self.samples_queue, self.done_rewards_queue)
+            proc = mp.Process(target=AsyncPlayersSwarm.player, args=args)
+            self.processes.append(proc)
+            proc.start()
+
+    def push_model_weights(self, weights):
+        for q in self.control_queues:
+            q.put(weights)
+
+    def get_batch(self):
+        batch = []
+        while len(batch) < self.batch_size:
+            batch.append(self.samples_queue.get())
+        states, actions, rewards = list(map(np.array, zip(*batch)))
+        return [states, actions, rewards], [rewards, rewards]
+
+    def get_done_rewards(self):
+        res = []
+        try:
+            while True:
+                res.append(self.done_rewards_queue.get_nowait())
+        except queue.Empty:
+            pass
+        return res
+
+    @classmethod
+    def player(cls, config, env_factory, model, ctrl_queue, out_queue, done_rewards_queue):
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        with tf.device("/cpu:0"):
+            players = [Player(env_factory(), config.a3c_steps, config.a3c_gamma, config.max_steps, idx)
+                       for idx in range(config.swarm_size)]
+            # input_t, conv_out_t = atari.net_input(players[0].env)
+            # n_actions = players[0].env.action_space.n
+            # model = make_run_model(input_t, conv_out_t, n_actions)
+            while True:
+                # check ctrl queue for new model
+                if not ctrl_queue.empty():
+                    weights = ctrl_queue.get()
+                    # stop requested
+                    if weights is None:
+                        break
+                    model.set_weights(weights)
+
+                for sample in Player.step_players(model, players):
+                    out_queue.put(sample)
+                for rw in Player.gather_done_rewards(*players):
+                    done_rewards_queue.put(rw)
