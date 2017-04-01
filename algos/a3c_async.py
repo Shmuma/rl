@@ -48,10 +48,12 @@ if __name__ == "__main__":
     value_policy_model = make_train_model(input_t, conv_out_t, n_actions, entropy_beta=config.a3c_beta)
     value_policy_model.summary()
     run_model = make_run_model(input_t, conv_out_t, n_actions)
+    run_model.summary()
 
     loss_dict = {
         'policy_loss': lambda y_true, y_pred: y_pred,
-        'value': 'mse',
+        'value_loss': lambda y_true, y_pred: y_pred,
+        'entropy_loss': lambda y_true, y_pred: y_pred,
     }
 
     optimizer = Adam(lr=config.learning_rate, epsilon=1e-3, clipnorm=config.gradient_clip_norm)
@@ -71,29 +73,24 @@ if __name__ == "__main__":
     tweaker.add("lr", optimizer.lr)
 
     players = player.AsyncPlayersSwarm(config, env_factory, run_model)
-    players.push_model_weights(value_policy_model.get_weights())
     iter_idx = 0
     bench_samples = 0
     bench_ts = time.time()
 
-    batch_time = 0
-    train_time = 0
-
     while True:
+        if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
+            players.push_model_weights(value_policy_model.get_weights())
+
         iter_idx += 1
         batch_ts = time.time()
-        x_batch, y_batch = players.get_batch()
-        batch_time += time.time() - batch_ts
-        train_ts = time.time()
-        l = value_policy_model.train_on_batch(x_batch, y_batch)
-        train_time += time.time() - train_ts
+        x_batch = players.get_batch()
+        # stub for y
+        y_stub = np.zeros(len(x_batch[0]))
+
+        l = value_policy_model.train_on_batch(x_batch, [y_stub]*3)
         bench_samples += config.batch_size
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
-            common.summary_value("time_batch", batch_time / SUMMARY_EVERY_BATCH, summary_writer, iter_idx)
-            common.summary_value("time_train", train_time / SUMMARY_EVERY_BATCH, summary_writer, iter_idx)
-            batch_time = 0
-            train_time = 0
             l_dict = dict(zip(value_policy_model.metrics_names, l))
             done_rewards = players.get_done_rewards()
 
@@ -104,7 +101,6 @@ if __name__ == "__main__":
 
             # summary_value("rewards_norm_mean", np.mean(y_batch[0]), summary_writer, iter_idx)
             common.summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
-            common.summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
             common.summary_value("loss", l_dict['loss'], summary_writer, iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
@@ -112,9 +108,6 @@ if __name__ == "__main__":
             logger.info("Iter %d: speed %s per batch", iter_idx,
                         datetime.timedelta(seconds=(time.time() - bench_ts)/SUMMARY_EVERY_BATCH))
             bench_ts = time.time()
-
-        if iter_idx % SYNC_MODEL_EVERY_BATCH == 0:
-            players.push_model_weights(value_policy_model.get_weights())
 
         if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
             value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))

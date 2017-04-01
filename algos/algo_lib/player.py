@@ -146,7 +146,7 @@ class AsyncPlayersSwarm:
         while len(batch) < self.batch_size:
             batch.append(self.samples_queue.get())
         states, actions, rewards = list(map(np.array, zip(*batch)))
-        return [states, actions, rewards], [rewards, rewards]
+        return [states, actions, rewards]
 
     def get_done_rewards(self):
         res = []
