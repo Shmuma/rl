@@ -67,6 +67,9 @@ if __name__ == "__main__":
         logger.info("Loading model from %s", args.read)
         value_policy_model.load_weights(args.read)
 
+    tweaker = common.ParamsTweaker()
+    tweaker.add("lr", optimizer.lr)
+
     players = player.AsyncPlayersSwarm(config, env_factory, run_model)
     players.push_model_weights(value_policy_model.get_weights())
     iter_idx = 0
@@ -115,3 +118,5 @@ if __name__ == "__main__":
 
         if iter_idx % SAVE_MODEL_EVERY_BATCH == 0:
             value_policy_model.save(os.path.join("logs", args.name, "model-%06d.h5" % iter_idx))
+
+        tweaker.check()
