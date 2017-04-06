@@ -11,9 +11,12 @@ from keras import backend as K
 import tensorflow as tf
 
 from algo_lib.common import make_env, summarize_gradients, summary_value
-from algo_lib.atari import HISTORY_STEPS, net_input
+from algo_lib import common
+from algo_lib import atari
 from algo_lib.a3c import make_run_model, make_train_model
 from algo_lib.player import Player, generate_batches
+
+HISTORY_STEPS = 4
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -28,11 +31,8 @@ SAVE_MODEL_EVERY_BATCH = 3000
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--ini", required=True, help="Ini file with configuration")
     parser.add_argument("-n", "--name", required=True, help="Run name")
-    parser.add_argument("-e", "--env", default="Breakout-v0", help="Environment name to use")
-    parser.add_argument("-m", "--monitor", help="Enable monitor and save data into provided dir, default=disabled")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma for reward discount, default=0.99")
-    parser.add_argument("--steps", type=int, default=5, help="Count of steps to use in reward estimation")
     args = parser.parse_args()
 
     # limit GPU memory
@@ -40,22 +40,26 @@ if __name__ == "__main__":
     config.gpu_options.per_process_gpu_memory_fraction = 0.2
     K.set_session(tf.Session(config=config))
 
-    env = make_env(args.env, args.monitor, history_steps=HISTORY_STEPS)
+    config = common.Configuration(args.ini)
+    env_factory = atari.AtariEnvFactory(config)
+
+    env = env_factory()
     state_shape = env.observation_space.shape
     n_actions = env.action_space.n
-    logger.info("Created environment %s, state: %s, actions: %s", args.env, state_shape, n_actions)
+    logger.info("Created environment %s, state: %s, actions: %s", config.env_name, state_shape, n_actions)
 
-    tr_input_t, tr_conv_out_t = net_input(state_shape)
+    tr_input_t, tr_conv_out_t = atari.net_input(env)
     value_policy_model = make_train_model(tr_input_t, tr_conv_out_t, n_actions)
 
-    r_input_t, r_conv_out_t = net_input(state_shape)
+    r_input_t, r_conv_out_t = atari.net_input(env)
     run_model = make_run_model(r_input_t, r_conv_out_t, n_actions)
 
     value_policy_model.summary()
 
     loss_dict = {
-        'value': 'mse',
-        'policy_loss': lambda y_true, y_pred: y_pred
+        'policy_loss': lambda y_true, y_pred: y_pred,
+        'value_loss': lambda y_true, y_pred: y_pred,
+        'entropy_loss': lambda y_true, y_pred: y_pred,
     }
 
     value_policy_model.compile(optimizer=Adam(lr=0.001, epsilon=1e-3, clipnorm=0.1), loss=loss_dict)
@@ -66,15 +70,16 @@ if __name__ == "__main__":
     value_policy_model.metrics_names.append("value_summary")
     value_policy_model.metrics_tensors.append(tf.summary.merge_all())
 
-    players = [Player(make_env(args.env, args.monitor, history_steps=HISTORY_STEPS), reward_steps=args.steps,
-                      gamma=args.gamma, max_steps=40000, player_index=idx)
+    players = [Player(env_factory(), reward_steps=config.a3c_steps,
+                      gamma=config.a3c_gamma, max_steps=config.max_steps, player_index=idx)
                for idx in range(PLAYERS_COUNT)]
 
     bench_samples = 0
     bench_ts = time.time()
 
-    for iter_idx, (x_batch, y_batch) in enumerate(generate_batches(run_model, players, BATCH_SIZE)):
-        l = value_policy_model.train_on_batch(x_batch, y_batch)
+    for iter_idx, x_batch in enumerate(generate_batches(run_model, players, BATCH_SIZE)):
+        y_stub = np.zeros(len(x_batch[0]))
+        l = value_policy_model.train_on_batch(x_batch, [y_stub]*3)
         bench_samples += BATCH_SIZE
 
         if iter_idx % SUMMARY_EVERY_BATCH == 0:
@@ -86,8 +91,7 @@ if __name__ == "__main__":
                 summary_value("reward_episode_max", np.max(done_rewards), summary_writer, iter_idx)
 
             summary_value("speed", bench_samples / (time.time() - bench_ts), summary_writer, iter_idx)
-            summary_value("reward_batch", np.mean(y_batch[0]), summary_writer, iter_idx)
-            summary_value("loss_value", l_dict['value_loss'], summary_writer, iter_idx)
+            summary_value("reward_batch", np.mean(x_batch[2]), summary_writer, iter_idx)
             summary_value("loss_full", l_dict['loss'], summary_writer, iter_idx)
             summary_writer.add_summary(l_dict['value_summary'], global_step=iter_idx)
             summary_writer.flush()
