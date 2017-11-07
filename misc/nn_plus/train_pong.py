@@ -54,9 +54,8 @@ class NoisyDQN(nn.Module):
         return out
 
 
-
 if __name__ == "__main__":
-    params = common.HYPERPARAMS['pong']
+    params = common.HYPERPARAMS['breakout']
     parser = argparse.ArgumentParser()
     parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
     args = parser.parse_args()
