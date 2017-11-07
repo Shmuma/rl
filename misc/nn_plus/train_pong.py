@@ -28,14 +28,17 @@ class NoisyDQN(nn.Module):
         )
 
         conv_out_size = self._get_conv_out(input_shape)
-        self.noisy_layers = [
-            model.NoisyLinear(conv_out_size, 512),
-            model.NoisyLinear(512, n_actions)
-        ]
+        self.noisy_out = model.NoisyLinearExt(512, n_actions)
+
         self.fc = nn.Sequential(
-            self.noisy_layers[0],
+            nn.Linear(conv_out_size, 512),
             nn.ReLU(),
-            self.noisy_layers[1]
+        )
+
+        self.sigma_layers = nn.Sequential(
+            nn.Linear(conv_out_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
         )
 
     def _get_conv_out(self, shape):
@@ -45,13 +48,11 @@ class NoisyDQN(nn.Module):
     def forward(self, x):
         fx = x.float() / 256
         conv_out = self.conv(fx).view(fx.size()[0], -1)
-        return self.fc(conv_out)
+        sigma = self.sigma_layers(conv_out)
+        fc_out = self.fc(conv_out)
+        out = self.noisy_out(fc_out, sigma=sigma)
+        return out
 
-    def noisy_layers_sigma_snr(self):
-        return [
-            ((layer.weight ** 2).mean().sqrt() / (layer.sigma_weight ** 2).mean().sqrt()).data.cpu().numpy()[0]
-            for layer in self.noisy_layers
-        ]
 
 
 if __name__ == "__main__":
@@ -63,7 +64,7 @@ if __name__ == "__main__":
     env = gym.make(params['env_name'])
     env = ptan.common.wrappers.wrap_dqn(env)
 
-    writer = SummaryWriter(comment="-" + params['run_name'] + "-noisy-net")
+    writer = SummaryWriter(comment="-" + params['run_name'] + "-noisy-plus-1")
     net = NoisyDQN(env.observation_space.shape, env.action_space.n)
     if args.cuda:
         net.cuda()
@@ -98,9 +99,3 @@ if __name__ == "__main__":
 
             if frame_idx % params['target_net_sync'] == 0:
                 tgt_net.sync()
-
-            if frame_idx % 500 == 0:
-                snr_vals = net.noisy_layers_sigma_snr()
-                for layer_idx, sigma_l2 in enumerate(snr_vals):
-                    writer.add_scalar("sigma_snr_layer_%d" % (layer_idx+1),
-                                      sigma_l2, frame_idx)

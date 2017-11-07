@@ -61,3 +61,22 @@ class NoisyFactorizedLinear(nn.Linear):
         return F.linear(input, self.weight + self.sigma_weight * noise_v, bias)
 
 
+class NoisyLinearExt(nn.Linear):
+    """
+    Noisy layer with externally-controllable sigma
+    """
+    def __init__(self, in_features, out_features, bias=True):
+        super(NoisyLinearExt, self).__init__(in_features, out_features, bias=bias)
+        self.rand_buf = None
+
+    def forward(self, input, sigma=None):
+        res = F.linear(input, self.weight, self.bias)
+        if sigma is None:
+            return res
+        if self.rand_buf is None or self.rand_buf.size() != res.size():
+            self.rand_buf = torch.FloatTensor(res.size())
+            if input.is_cuda:
+                self.rand_buf = self.rand_buf.cuda()
+        torch.randn(self.rand_buf.size(), out=self.rand_buf)
+#        print(m.size(), res.size())
+        return res + torch.mul(sigma, Variable(self.rand_buf))
