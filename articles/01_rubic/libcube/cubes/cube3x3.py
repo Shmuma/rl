@@ -39,15 +39,44 @@ def _permute(t, m):
     return r
 
 
+def _rotate(corner_ort, corners):
+    """
+    Rotate given corners 120 degrees
+    """
+    r = list(corner_ort)
+    for c in corners:
+        r[c] = (r[c] + 1) % 3
+    return r
+
+
+def _flip(side_ort, sides):
+    return [
+        o if idx not in sides else 1-o
+        for idx, o in enumerate(side_ort)
+    ]
+
+
 # apply action to the state
 def transform(state, action):
     assert isinstance(state, State)
     assert isinstance(action, Action)
 
     if action == Action.R:
-        pass
+        m = ((1, 2), (2, 6), (6, 5), (5, 1))
+        s = ((1, 6), (6, 9), (9, 5), (5, 1))
+        c_o = (1, 1, 2, 5, 6, 6)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=state.side_ort)
     elif action == Action.r:
-        pass
+        m = ((2, 1), (6, 2), (5, 6), (1, 5))
+        s = ((6, 1), (9, 6), (5, 9), (1, 5))
+        c_o = (1, 1, 2, 5, 6, 6)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=state.side_ort)
     elif action == Action.L:
         pass
     elif action == Action.l:
