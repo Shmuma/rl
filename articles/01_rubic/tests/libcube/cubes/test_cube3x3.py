@@ -83,6 +83,28 @@ class CubeTransforms(unittest.TestCase):
         self.assertEqual(r.right, ['B'] * 9)
         self.assertEqual(r.top, ['W', 'W', 'O'] * 3)
 
+    def test_left(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.L)
+        r = cube3x3.render(s)
+        self.assertEqual(r.back, ['O', 'O', 'Y'] * 3)
+        self.assertEqual(r.bottom, ['R', 'Y', 'Y'] * 3)
+        self.assertEqual(r.front, ['W', 'R', 'R'] * 3)
+        self.assertEqual(r.left, ['G'] * 9)
+        self.assertEqual(r.right, ['B'] * 9)
+        self.assertEqual(r.top, ['O', 'W', 'W'] * 3)
+
+    def test_left_rev(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.l)
+        r = cube3x3.render(s)
+        self.assertEqual(r.back, ['O', 'O', 'W'] * 3)
+        self.assertEqual(r.bottom, ['O', 'Y', 'Y'] * 3)
+        self.assertEqual(r.front, ['Y', 'R', 'R'] * 3)
+        self.assertEqual(r.left, ['G'] * 9)
+        self.assertEqual(r.right, ['B'] * 9)
+        self.assertEqual(r.top, ['R', 'W', 'W'] * 3)
+
 
 
 if __name__ == '__main__':

@@ -78,9 +78,21 @@ def transform(state, action):
                      side_pos=_permute(state.side_pos, s),
                      side_ort=state.side_ort)
     elif action == Action.L:
-        pass
+        m = ((3, 0), (7, 3), (0, 4), (4, 7))
+        s = ((7, 3), (3, 4), (11, 7), (4, 11))
+        c_o = (0, 3, 3, 4, 4, 7)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=state.side_ort)
     elif action == Action.l:
-        pass
+        m = ((0, 3), (3, 7), (4, 0), (7, 4))
+        s = ((3, 7), (4, 3), (7, 11), (11, 4))
+        c_o = (0, 3, 3, 4, 4, 7)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=state.side_ort)
     elif action == Action.F:
         pass
     elif action == Action.f:
