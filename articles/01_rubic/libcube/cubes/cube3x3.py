@@ -1,6 +1,7 @@
 """
 Classic cube 3x3
 """
+import enum
 import collections
 
 # environment API
@@ -13,14 +14,78 @@ RenderedState = collections.namedtuple("RenderedState", field_names=['top', 'fro
 initial_state = State(corner_pos=range(8), side_pos=range(12), corner_ort=[0]*8, side_ort=[0]*12)
 
 # available actions. Capital actions denote clockwise rotation
-action_names = ['R', 'L', 'T', 'B', 'F', 'B', 'r', 'l', 't', 'b', 'f', 'b']
-actions = list(range(len(action_names)))
+class Action(enum.Enum):
+    R = 0
+    L = 1
+    T = 2
+    D = 3
+    F = 4
+    B = 5
+    r = 6
+    l = 7
+    t = 8
+    d = 9
+    f = 10
+    b = 11
+
+
+def _permute(t, m):
+    """
+    Perform permutation of tuple according to mapping m
+    """
+    r = list(t)
+    for from_idx, to_idx in m:
+        r[to_idx] = t[from_idx]
+    return r
 
 
 # apply action to the state
 def transform(state, action):
     assert isinstance(state, State)
-    assert isinstance(action, int)
+    assert isinstance(action, Action)
+
+    if action == Action.R:
+        pass
+    elif action == Action.r:
+        pass
+    elif action == Action.L:
+        pass
+    elif action == Action.l:
+        pass
+    elif action == Action.F:
+        pass
+    elif action == Action.f:
+        pass
+    elif action == Action.B:
+        pass
+    elif action == Action.b:
+        pass
+    elif action == Action.T:
+        m = ((0, 3), (1, 0), (2, 1), (3, 2))
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=state.corner_ort,
+                     side_pos=_permute(state.side_pos, m),
+                     side_ort=state.side_ort)
+    elif action == Action.t:
+        m = ((0, 1), (1, 2), (2, 3), (3, 0))
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=state.corner_ort,
+                     side_pos=_permute(state.side_pos, m),
+                     side_ort=state.side_ort)
+    elif action == Action.D:
+        m = ((4, 5), (5, 6), (6, 7), (7, 4))
+        s = ((8, 9), (9, 10), (10, 11), (11, 8))
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=state.corner_ort,
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=state.side_ort)
+    elif action == Action.d:
+        m = ((4, 7), (5, 4), (6, 5), (7, 6))
+        s = ((8, 11), (9, 8), (10, 9), (11, 10))
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=state.corner_ort,
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=state.side_ort)
 
 
 # make initial state of rendered side
