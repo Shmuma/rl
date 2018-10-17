@@ -1,4 +1,6 @@
 import unittest
+import numpy as np
+import random
 
 from libcube.cubes import cube3x3
 
@@ -236,6 +238,22 @@ class CubeTransforms(unittest.TestCase):
             s = cube3x3.transform(s, cube3x3.inverse_action(a))
         r = cube3x3.render(s)
         self.assertEqual(s, cube3x3.initial_state)
+
+
+class CubeEncoding(unittest.TestCase):
+    def test_init(self):
+        tgt = np.zeros(shape=cube3x3.encoded_shape)
+        s = cube3x3.initial_state
+        cube3x3.encode_inplace(tgt, s)
+
+    def test_random(self):
+        s = cube3x3.initial_state
+        for _ in range(200):
+            a = cube3x3.Action(random.randrange(len(cube3x3.Action)))
+            s = cube3x3.transform(s, a)
+            tgt = np.zeros(shape=cube3x3.encoded_shape)
+            cube3x3.encode_inplace(tgt, s)
+            self.assertEqual(tgt.sum(), 20)
 
 
 if __name__ == '__main__':

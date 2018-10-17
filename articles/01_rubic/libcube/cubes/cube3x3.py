@@ -3,6 +3,7 @@ Classic cube 3x3
 """
 import enum
 import collections
+import numpy as np
 
 # environment API
 State = collections.namedtuple("State", field_names=['corner_pos', 'side_pos', 'corner_ort', 'side_ort'])
@@ -124,6 +125,7 @@ _transform_map = {
 def transform(state, action):
     assert isinstance(state, State)
     assert isinstance(action, Action)
+    global _transform_map
 
     is_inv = action not in _transform_map
     if is_inv:
@@ -237,3 +239,31 @@ def render(state):
 
     return RenderedState(top=sides[0], left=sides[1], back=sides[2], front=sides[3],
                          right=sides[4], bottom=sides[5])
+
+
+# shape of encoded cube state
+encoded_shape = (20, 24)
+
+
+def encode_inplace(target, state):
+    """
+    Encode cude into existig zeroed numpy array
+    Follows encoding described in paper https://arxiv.org/abs/1805.07470
+    :param target: numpy array
+    :param state: state to be encoded
+    """
+    assert isinstance(state, State)
+
+    # handle corner cubelets: find their permuted position
+    for corner_idx in range(8):
+        perm_pos = state.corner_pos.index(corner_idx)
+        corn_ort = state.corner_ort[perm_pos]
+        target[corner_idx, perm_pos * 3 + corn_ort] = 1
+
+    # handle side cubelets
+    for side_idx in range(12):
+        perm_pos = state.side_pos.index(side_idx)
+        side_ort = state.side_ort[perm_pos]
+        target[8 + side_idx, perm_pos * 2 + side_ort] = 1
+
+
