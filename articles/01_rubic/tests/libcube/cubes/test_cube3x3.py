@@ -149,6 +149,28 @@ class CubeTransforms(unittest.TestCase):
         self.assertEqual(r.right, ['B', 'B', 'W'] * 3)
         self.assertEqual(r.top, ['G'] * 3 + ['W'] * 6)
 
+    def test_inverse_right(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.R)
+        s = cube3x3.transform(s, cube3x3.Action.r)
+        self.assertEqual(s, cube3x3.initial_state)
+
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.r)
+        s = cube3x3.transform(s, cube3x3.Action.R)
+        self.assertEqual(s, cube3x3.initial_state)
+
+
+    def test_inverse(self):
+        s = cube3x3.initial_state
+        for a in cube3x3.Action:
+            s = cube3x3.transform(s, a)
+            r = cube3x3.render(s)
+            s = cube3x3.transform(s, cube3x3.inverse_action(a))
+            r2 = cube3x3.render(s)
+            print(r, r2)
+        self.assertEqual(s, cube3x3.initial_state)
+
 
 if __name__ == '__main__':
     unittest.main()

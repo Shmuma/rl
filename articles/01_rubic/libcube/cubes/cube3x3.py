@@ -11,7 +11,7 @@ State = collections.namedtuple("State", field_names=['corner_pos', 'side_pos', '
 RenderedState = collections.namedtuple("RenderedState", field_names=['top', 'front', 'left', 'right', 'back', 'bottom'])
 
 # initial (solved state)
-initial_state = State(corner_pos=range(8), side_pos=range(12), corner_ort=[0]*8, side_ort=[0]*12)
+initial_state = State(corner_pos=list(range(8)), side_pos=list(range(12)), corner_ort=[0]*8, side_ort=[0]*12)
 
 
 # available actions. Capital actions denote clockwise rotation
@@ -87,16 +87,20 @@ def transform(state, action):
         m = ((1, 2), (2, 6), (6, 5), (5, 1))
         s = ((1, 6), (6, 9), (9, 5), (5, 1))
         c_o = (1, 1, 2, 5, 6, 6)
+        corner_ort = _permute(state.corner_ort, m)
+        corner_ort = _rotate(corner_ort, c_o)
         return State(corner_pos=_permute(state.corner_pos, m),
-                     corner_ort=_rotate(state.corner_ort, c_o),
+                     corner_ort=corner_ort,
                      side_pos=_permute(state.side_pos, s),
                      side_ort=state.side_ort)
     elif action == Action.r:
         m = ((2, 1), (6, 2), (5, 6), (1, 5))
         s = ((6, 1), (9, 6), (5, 9), (1, 5))
         c_o = (1, 1, 2, 5, 6, 6)
+        corner_ort = _permute(state.corner_ort, m)
+        corner_ort = _rotate(corner_ort, c_o)
         return State(corner_pos=_permute(state.corner_pos, m),
-                     corner_ort=_rotate(state.corner_ort, c_o),
+                     corner_ort=corner_ort,
                      side_pos=_permute(state.side_pos, s),
                      side_ort=state.side_ort)
     elif action == Action.L:
