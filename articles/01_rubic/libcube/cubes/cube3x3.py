@@ -13,6 +13,7 @@ RenderedState = collections.namedtuple("RenderedState", field_names=['top', 'fro
 # initial (solved state)
 initial_state = State(corner_pos=range(8), side_pos=range(12), corner_ort=[0]*8, side_ort=[0]*12)
 
+
 # available actions. Capital actions denote clockwise rotation
 class Action(enum.Enum):
     R = 0
@@ -27,6 +28,27 @@ class Action(enum.Enum):
     d = 9
     f = 10
     b = 11
+
+
+_inverse_action = {
+    Action.R: Action.r,
+    Action.r: Action.R,
+    Action.L: Action.l,
+    Action.l: Action.L,
+    Action.T: Action.t,
+    Action.t: Action.T,
+    Action.D: Action.d,
+    Action.d: Action.D,
+    Action.F: Action.f,
+    Action.f: Action.F,
+    Action.B: Action.b,
+    Action.b: Action.B
+}
+
+
+def inverse_action(action):
+    assert isinstance(action, Action)
+    return _inverse_action[action]
 
 
 def _permute(t, m):
@@ -94,13 +116,41 @@ def transform(state, action):
                      side_pos=_permute(state.side_pos, s),
                      side_ort=state.side_ort)
     elif action == Action.F:
-        pass
+        m = ((0, 1), (1, 5), (5, 4), (4, 0))
+        s = ((0, 5), (4, 0), (5, 8), (8, 4))
+        c_o = (0, 0, 1, 4, 5, 5)
+        s_o = (0, 4, 5, 8)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=_flip(state.side_ort, s_o))
     elif action == Action.f:
-        pass
+        m = ((1, 0), (5, 1), (4, 5), (0, 4))
+        s = ((5, 0), (0, 4), (8, 5), (4, 8))
+        c_o = (0, 0, 1, 4, 5, 5)
+        s_o = (0, 4, 5, 8)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=_flip(state.side_ort, s_o))
     elif action == Action.B:
-        pass
+        m = ((2, 3), (3, 7), (7, 6), (6, 2))
+        s = ((2, 7), (6, 2), (7, 10), (10, 6))
+        c_o = (2, 2, 3, 6, 7, 7)
+        s_o = (2, 6, 7, 10)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=_flip(state.side_ort, s_o))
     elif action == Action.b:
-        pass
+        m = ((3, 2), (7, 3), (6, 7), (2, 6))
+        s = ((7, 2), (2, 6), (10, 7), (6, 10))
+        c_o = (2, 2, 3, 6, 7, 7)
+        s_o = (2, 6, 7, 10)
+        return State(corner_pos=_permute(state.corner_pos, m),
+                     corner_ort=_rotate(state.corner_ort, c_o),
+                     side_pos=_permute(state.side_pos, s),
+                     side_ort=_flip(state.side_ort, s_o))
     elif action == Action.T:
         m = ((0, 3), (1, 0), (2, 1), (3, 2))
         return State(corner_pos=_permute(state.corner_pos, m),

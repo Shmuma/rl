@@ -105,6 +105,49 @@ class CubeTransforms(unittest.TestCase):
         self.assertEqual(r.right, ['B'] * 9)
         self.assertEqual(r.top, ['R', 'W', 'W'] * 3)
 
+    def test_front(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.F)
+        r = cube3x3.render(s)
+        self.assertEqual(r.back, ['O'] * 9)
+        self.assertEqual(r.bottom, ['B'] * 3 + ['Y'] * 6)
+        self.assertEqual(r.front, ['R'] * 9)
+        self.assertEqual(r.left, ['G', 'G', 'Y'] * 3)
+        self.assertEqual(r.right, ['W', 'B', 'B'] * 3)
+        self.assertEqual(r.top, ['W'] * 6 + ['G'] * 3)
+
+    def test_front_rev(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.f)
+        r = cube3x3.render(s)
+        self.assertEqual(r.back, ['O'] * 9)
+        self.assertEqual(r.bottom, ['G'] * 3 + ['Y'] * 6)
+        self.assertEqual(r.front, ['R'] * 9)
+        self.assertEqual(r.left, ['G', 'G', 'W'] * 3)
+        self.assertEqual(r.right, ['Y', 'B', 'B'] * 3)
+        self.assertEqual(r.top, ['W'] * 6 + ['B'] * 3)
+
+    def test_back(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.B)
+        r = cube3x3.render(s)
+        self.assertEqual(r.back, ['O'] * 9)
+        self.assertEqual(r.bottom, ['Y'] * 6 + ['G'] * 3)
+        self.assertEqual(r.front, ['R'] * 9)
+        self.assertEqual(r.left, ['W', 'G', 'G'] * 3)
+        self.assertEqual(r.right, ['B', 'B', 'Y'] * 3)
+        self.assertEqual(r.top, ['B'] * 3 + ['W'] * 6)
+
+    def test_back_rev(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.b)
+        r = cube3x3.render(s)
+        self.assertEqual(r.back, ['O'] * 9)
+        self.assertEqual(r.bottom, ['Y'] * 6 + ['B'] * 3)
+        self.assertEqual(r.front, ['R'] * 9)
+        self.assertEqual(r.left, ['Y', 'G', 'G'] * 3)
+        self.assertEqual(r.right, ['B', 'B', 'W'] * 3)
+        self.assertEqual(r.top, ['G'] * 3 + ['W'] * 6)
 
 
 if __name__ == '__main__':
