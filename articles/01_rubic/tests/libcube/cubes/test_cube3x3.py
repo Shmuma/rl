@@ -160,6 +160,60 @@ class CubeTransforms(unittest.TestCase):
         s = cube3x3.transform(s, cube3x3.Action.R)
         self.assertEqual(s, cube3x3.initial_state)
 
+    def test_inverse_left(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.L)
+        s = cube3x3.transform(s, cube3x3.Action.l)
+        self.assertEqual(s, cube3x3.initial_state)
+
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.l)
+        s = cube3x3.transform(s, cube3x3.Action.L)
+        self.assertEqual(s, cube3x3.initial_state)
+
+    def test_inverse_top(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.T)
+        s = cube3x3.transform(s, cube3x3.Action.t)
+        self.assertEqual(s, cube3x3.initial_state)
+
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.t)
+        s = cube3x3.transform(s, cube3x3.Action.T)
+        self.assertEqual(s, cube3x3.initial_state)
+
+    def test_inverse_down(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.D)
+        s = cube3x3.transform(s, cube3x3.Action.d)
+        self.assertEqual(s, cube3x3.initial_state)
+
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.d)
+        s = cube3x3.transform(s, cube3x3.Action.D)
+        self.assertEqual(s, cube3x3.initial_state)
+
+    def test_inverse_front(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.F)
+        s = cube3x3.transform(s, cube3x3.Action.f)
+        self.assertEqual(s, cube3x3.initial_state)
+
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.f)
+        s = cube3x3.transform(s, cube3x3.Action.F)
+        self.assertEqual(s, cube3x3.initial_state)
+
+    def test_inverse_back(self):
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.B)
+        s = cube3x3.transform(s, cube3x3.Action.b)
+        self.assertEqual(s, cube3x3.initial_state)
+
+        s = cube3x3.initial_state
+        s = cube3x3.transform(s, cube3x3.Action.b)
+        s = cube3x3.transform(s, cube3x3.Action.B)
+        self.assertEqual(s, cube3x3.initial_state)
 
     def test_inverse(self):
         s = cube3x3.initial_state
@@ -168,7 +222,19 @@ class CubeTransforms(unittest.TestCase):
             r = cube3x3.render(s)
             s = cube3x3.transform(s, cube3x3.inverse_action(a))
             r2 = cube3x3.render(s)
-            print(r, r2)
+        self.assertEqual(s, cube3x3.initial_state)
+
+    def test_sequence(self):
+        acts = [cube3x3.Action.R, cube3x3.Action.t, cube3x3.Action.R, cube3x3.Action.D, cube3x3.Action.F,
+                cube3x3.Action.d, cube3x3.Action.T, cube3x3.Action.R, cube3x3.Action.D, cube3x3.Action.F]
+
+        s = cube3x3.initial_state
+        for a in acts:
+            s = cube3x3.transform(s, a)
+        r = cube3x3.render(s)
+        for a in reversed(acts):
+            s = cube3x3.transform(s, cube3x3.inverse_action(a))
+        r = cube3x3.render(s)
         self.assertEqual(s, cube3x3.initial_state)
 
 
