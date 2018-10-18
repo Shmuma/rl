@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import time
 import argparse
 import logging
@@ -19,6 +20,7 @@ log = logging.getLogger("train")
 SCRAMBLES_COUNT = 100
 ROUNDS_COUNT = 20
 REPORT_ITERS = 100
+CHECKPOINT_ITERS = 1000
 LEARNING_RATE = 1e-4
 
 
@@ -70,7 +72,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    writer = SummaryWriter(comment="-%s-%s" % (args.cube, args.name))
+    name = "%s-%s" % (args.cube, args.name)
+    writer = SummaryWriter(comment="-" + name)
+    save_path = os.path.join("saves", name)
+    os.makedirs(save_path)
 
     cube_env = cubes.get(args.cube)
     assert isinstance(cube_env, cubes.CubeEnv)
@@ -84,6 +89,7 @@ if __name__ == "__main__":
     step_idx = 0
     buf_policy_loss, buf_value_loss, buf_loss = [], [], []
     ts = time.time()
+    best_loss = None
 
     while True:
         step_idx += 1
@@ -114,9 +120,20 @@ if __name__ == "__main__":
             dt = time.time() - ts
             ts = time.time()
             speed = SCRAMBLES_COUNT * ROUNDS_COUNT * REPORT_ITERS / dt
-            log.info("%d: p_loss=%.3f, v_loss=%.3f, loss=%.3f, speed=%.1f cubes/s",
+            log.info("%d: p_loss=%.3e, v_loss=%.3e, loss=%.3e, speed=%.1f cubes/s",
                      step_idx, m_policy_loss, m_value_loss, m_loss, speed)
             writer.add_scalar("loss_policy", m_policy_loss, step_idx)
             writer.add_scalar("loss_value", m_value_loss, step_idx)
             writer.add_scalar("loss", m_loss, step_idx)
             writer.add_scalar("speed", speed, step_idx)
+
+            if best_loss is None:
+                best_loss = m_loss
+            elif best_loss > m_loss:
+                name = os.path.join(save_path, "best_%.4e.dat" % m_loss)
+                torch.save(net.state_dict(), name)
+                best_loss = m_loss
+
+        if step_idx % CHECKPOINT_ITERS == 0:
+            name = os.path.join(save_path, "chpt_%06d.dat" % step_idx)
+            torch.save(net.state_dict(), name)
