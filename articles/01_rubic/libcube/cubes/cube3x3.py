@@ -3,7 +3,8 @@ Classic cube 3x3
 """
 import enum
 import collections
-import numpy as np
+
+from . import env
 
 # environment API
 State = collections.namedtuple("State", field_names=['corner_pos', 'side_pos', 'corner_ort', 'side_ort'])
@@ -267,3 +268,7 @@ def encode_inplace(target, state):
         target[8 + side_idx, perm_pos * 2 + side_ort] = 1
 
 
+# register env
+env.register(env.CubeEnv(name="cube3x3", state_type=State, action_enum=Action,
+                         transform_func=transform, render_func=render,
+                         encoded_shape=encoded_shape, encode_func=encode_inplace))
