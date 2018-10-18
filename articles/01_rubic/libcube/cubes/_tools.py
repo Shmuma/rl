@@ -28,8 +28,14 @@ def explore_state(cube_env, state):
     Expand cube state by applying every action to it
     :param cube_env: CubeEnv instance
     :param state: state to explore
-    :return: list of states reachable from the state
+    :return: tuple of two lists: [states reachable], [flag that state is initial]
     """
     assert isinstance(cube_env, _env.CubeEnv)
     assert isinstance(state, cube_env.state_type)
-    return [cube_env.transform_func(state, action) for action in cube_env.action_enum]
+    res_states, res_flags = [], []
+    for action in cube_env.action_enum:
+        new_state = cube_env.transform_func(state, action)
+        is_init = cube_env.is_initial_pred(new_state)
+        res_states.append(new_state)
+        res_flags.append(is_init)
+    return res_states, res_flags

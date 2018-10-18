@@ -16,6 +16,18 @@ RenderedState = collections.namedtuple("RenderedState", field_names=['top', 'fro
 initial_state = State(corner_pos=list(range(8)), side_pos=list(range(12)), corner_ort=[0]*8, side_ort=[0]*12)
 
 
+def is_initial(state):
+    """
+    Checks that this state is initial state
+    :param state: State instance
+    :return: True if state match initial, False otherwise
+    """
+    return state.corner_pos == initial_state.corner_pos and \
+           state.side_pos == initial_state.side_pos and \
+           state.corner_ort == initial_state.corner_ort and \
+           state.side_ort == initial_state.side_ort
+
+
 # available actions. Capital actions denote clockwise rotation
 class Action(enum.Enum):
     R = 0
@@ -269,6 +281,7 @@ def encode_inplace(target, state):
 
 
 # register env
-_env.register(_env.CubeEnv(name="cube3x3", state_type=State, initial_state=initial_state, action_enum=Action,
+_env.register(_env.CubeEnv(name="cube3x3", state_type=State, initial_state=initial_state,
+                           is_initial_pred=is_initial, action_enum=Action,
                            transform_func=transform, render_func=render,
                            encoded_shape=encoded_shape, encode_func=encode_inplace))

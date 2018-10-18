@@ -27,18 +27,30 @@ class Net(nn.Module):
             nn.Linear(512, 1)
         )
 
-    def forward(self, batch):
+    def forward(self, batch, value_only=False):
         x = batch.view((-1, self.input_size))
         body_out = self.body(x)
-        return self.policy(body_out), self.value(body_out)
+        value_out = self.value(body_out)
+        if value_only:
+            return value_out
+        policy_out = self.policy(body_out)
+        return policy_out, value_out
 
 
 def encode_states(cube_env, states):
     assert isinstance(cube_env, cubes.CubeEnv)
+    assert isinstance(states, (list, tuple))
 
-    encoded = np.zeros((len(states), len(states[0])) + cube_env.encoded_shape, dtype=np.float32)
+    # states could be list of lists or just list of states
+    if isinstance(states[0], list):
+        encoded = np.zeros((len(states), len(states[0])) + cube_env.encoded_shape, dtype=np.float32)
 
-    for i, st_list in enumerate(states):
-        for j, state in enumerate(st_list):
-            cube_env.encode_func(encoded[i, j], state)
+        for i, st_list in enumerate(states):
+            for j, state in enumerate(st_list):
+                cube_env.encode_func(encoded[i, j], state)
+    else:
+        encoded = np.zeros((len(states), ) + cube_env.encoded_shape, dtype=np.float32)
+        for i, state in enumerate(states):
+            cube_env.encode_func(encoded[i], state)
+
     return encoded
