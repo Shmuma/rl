@@ -3,6 +3,7 @@ import argparse
 import logging
 
 from libcube import cubes
+from libcube import model
 
 
 log = logging.getLogger("train")
@@ -14,5 +15,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cube = cubes.get(args.cube)
+    assert isinstance(cube, cubes.CubeEnv)
+
     log.info("Selected cube: %s", cube)
-    pass
+
+    net = model.Net(cube.encoded_shape, len(cube.action_enum))
+    print(net)
