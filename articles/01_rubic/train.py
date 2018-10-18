@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import argparse
 import logging
 import random
@@ -6,6 +7,8 @@ import random
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+
+from tensorboardX import SummaryWriter
 
 from libcube import cubes
 from libcube import model
@@ -60,7 +63,10 @@ if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--cube", required=True, help="Type of cube to train, supported types=%s" % cubes.names())
+    parser.add_argument("-n", "--name", required=True, help="Name of the run")
     args = parser.parse_args()
+
+    writer = SummaryWriter(comment="-%s-%s" % (args.cube, args.name))
 
     cube_env = cubes.get(args.cube)
     assert isinstance(cube_env, cubes.CubeEnv)
@@ -71,7 +77,7 @@ if __name__ == "__main__":
     print(net)
     opt = optim.RMSprop(net.parameters(), lr=LEARNING_RATE)
 
-    for _ in range(1):
+    for step in range(100):
         opt.zero_grad()
         x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net)
         policy_out_t, value_out_t = net(x_t)
@@ -86,3 +92,8 @@ if __name__ == "__main__":
         loss_t.backward()
         print(policy_loss_t, value_loss_t, loss_t)
         opt.step()
+        writer.add_scalar("loss_policy", policy_loss_t, step)
+        writer.add_scalar("loss_value", value_loss_t, step)
+        writer.add_scalar("loss", loss_t, step)
+
+    writer.close()
