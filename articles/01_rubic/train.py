@@ -24,7 +24,7 @@ CHECKPOINT_ITERS = 1000
 LEARNING_RATE = 1e-4
 
 
-def make_train_data(cube_env, net, device):
+def make_train_data(cube_env, net, device, use_rqsrt=False):
     net.eval()
     # scramble cube states and their depths
     data = []
@@ -58,7 +58,10 @@ def make_train_data(cube_env, net, device):
     enc_input = model.encode_states(cube_env, cube_states)
     enc_input_t = torch.tensor(enc_input).to(device)
     cube_depths_t = torch.tensor(cube_depths, dtype=torch.float32).to(device)
-    weights_t = 1.0 / cube_depths_t
+    if use_rqsrt:
+        weights_t = torch.rsqrt(cube_depths_t)
+    else:
+        weights_t = 1/cube_depths_t
     net.train()
     return enc_input_t, weights_t, max_act_t, max_val_t
 
@@ -69,6 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--cube", required=True, help="Type of cube to train, supported types=%s" % cubes.names())
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("--cuda", action="store_true", help="Enable cuda")
+    parser.add_argument("--rsqrt", action="store_true", help="Use 1/sqrt(D) weight")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -93,7 +97,7 @@ if __name__ == "__main__":
 
     while True:
         step_idx += 1
-        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device)
+        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rqsrt)
         opt.zero_grad()
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
