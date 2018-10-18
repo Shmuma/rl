@@ -16,8 +16,8 @@ from libcube import model
 
 log = logging.getLogger("train")
 
-SCRAMBLES_COUNT = 10
-ROUNDS_COUNT = 2
+SCRAMBLES_COUNT = 100
+ROUNDS_COUNT = 20
 REPORT_ITERS = 100
 LEARNING_RATE = 1e-4
 
