@@ -13,7 +13,7 @@ class MCTS:
     """
     Monte Carlo Tree Search state and method
     """
-    def __init__(self, cube_env, state, exploration_c=10.0, virt_loss_nu=10.0, device="cpu"):
+    def __init__(self, cube_env, state, exploration_c=100, virt_loss_nu=10.0, device="cpu"):
         assert isinstance(cube_env, cubes.CubeEnv)
         assert cube_env.is_state(state)
 
@@ -38,6 +38,27 @@ class MCTS:
 
     def __repr__(self):
         return "MCTS(states=%d)" % len(self.edges)
+
+    def dump_root(self):
+        s = self.root_state
+        print("")
+        print("act_counts: %s" % ", ".join(map(lambda v: "%8d" % v, self.act_counts[s].tolist())))
+        print("probs:      %s" % ", ".join(map(lambda v: "%.2e" % v, self.prob_actions[s].tolist())))
+        print("val_maxes:  %s" % ", ".join(map(lambda v: "%.2e" % v, self.val_maxes[s].tolist())))
+
+        act_counts = self.act_counts[s]
+        N_sqrt = np.sqrt(np.sum(act_counts))
+        u = self.exploration_c * N_sqrt / (act_counts + 1)
+        print("u:          %s" % ", ".join(map(lambda v: "%.2e" % v, u.tolist())))
+        u *= self.prob_actions[s]
+        print("u*prob:     %s" % ", ".join(map(lambda v: "%.2e" % v, u.tolist())))
+        q = self.val_maxes[s] - self.virt_loss[s]
+        print("q:          %s" % ", ".join(map(lambda v: "%.2e" % v, q.tolist())))
+        fin = u + q
+        print("u + q:      %s" % ", ".join(map(lambda v: "%.2e" % v, fin.tolist())))
+        act = np.argmax(fin, axis=0)
+        print("Action: %s" % act)
+
 
     def search(self, net):
         s = self.root_state

@@ -17,6 +17,7 @@ log = logging.getLogger("solver")
 
 
 DEFAULT_MAX_SECONDS = 60
+DUMP_ROOT_EVERY_SECONDS = 20
 
 
 def generate_task(env, depth):
@@ -30,9 +31,11 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
     tree = mcts.MCTS(env, cube_state, device=device)
     step_no = 0
     ts = time.time()
+    tb = 0
 
     while True:
         r = tree.search(net)
+#        tree.dump_root()
         if r:
             log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                      step_no, step_no / (time.time() - ts))
@@ -41,11 +44,17 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
         if time.time() - ts > max_seconds:
             log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                      step_no, step_no / (time.time() - ts))
-            for _, cnt in zip(range(10), tree.act_counts.values()):
-                print(cnt)
-            for _, cnt in zip(range(10), tree.val_maxes.values()):
-                print(cnt)
+            # for _, cnt in zip(range(10), tree.act_counts.values()):
+            #     print(cnt)
+            # for _, cnt in zip(range(10), tree.val_maxes.values()):
+            #     print(cnt)
             break
+        if DUMP_ROOT_EVERY_SECONDS > 0:
+            t = (time.time() - ts) // DUMP_ROOT_EVERY_SECONDS
+            if t > tb:
+                tree.dump_root()
+                tb = t
+    tree.dump_root()
 
 
 if __name__ == "__main__":
