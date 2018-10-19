@@ -23,7 +23,7 @@ if __name__ == "__main__":
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-i", "--input", help="Text file with permutations to read cubes to solve, "
                                              "possibly produced by gen_cubes.py")
-    group.add_argument("-p", "--perms", help="Permutation in form of actions list separated by spaces")
+    group.add_argument("-p", "--perms", help="Permutation in form of actions list separated by comma")
     group.add_argument("-r", "--random", metavar="DEPTH", type=int, help="Generate random scramble of given depth")
     args = parser.parse_args()
 
