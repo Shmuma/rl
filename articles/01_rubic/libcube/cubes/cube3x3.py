@@ -13,7 +13,7 @@ State = collections.namedtuple("State", field_names=['corner_pos', 'side_pos', '
 RenderedState = collections.namedtuple("RenderedState", field_names=['top', 'front', 'left', 'right', 'back', 'bottom'])
 
 # initial (solved state)
-initial_state = State(corner_pos=list(range(8)), side_pos=list(range(12)), corner_ort=[0]*8, side_ort=[0]*12)
+initial_state = State(corner_pos=tuple(range(8)), side_pos=tuple(range(12)), corner_ort=tuple([0]*8), side_ort=tuple([0]*12))
 
 
 def is_initial(state):
@@ -152,7 +152,8 @@ def transform(state, action):
     if s_flp:
         side_ort = _permute(side_ort, s_map, is_inv)
         side_ort = _flip(side_ort, s_flp)
-    return State(corner_pos=corner_pos, corner_ort=corner_ort, side_pos=side_pos, side_ort=side_ort)
+    return State(corner_pos=tuple(corner_pos), corner_ort=tuple(corner_ort),
+                 side_pos=tuple(side_pos), side_ort=tuple(side_ort))
 
 
 # make initial state of rendered side

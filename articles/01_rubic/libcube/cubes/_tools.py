@@ -3,6 +3,7 @@ Utility functions generic for all cube types
 """
 from . import _env
 
+# TODO: move functions into CubeState methods
 
 def scramble_cube(cube_env, scrambles_count):
     """

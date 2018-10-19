@@ -53,6 +53,9 @@ class CubeEnv:
             s = self.transform(s, action)
         return s
 
+    def is_state(self, state):
+        return isinstance(state, self._state_type)
+
 
 
 
