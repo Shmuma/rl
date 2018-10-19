@@ -21,7 +21,7 @@ SCRAMBLES_COUNT = 100
 ROUNDS_COUNT = 20
 REPORT_ITERS = 100
 CHECKPOINT_ITERS = 1000
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-5
 
 
 def make_train_data(cube_env, net, device, use_rqsrt=False):
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--cube", required=True, help="Type of cube to train, supported types=%s" % cubes.names())
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("--cuda", action="store_true", help="Enable cuda")
-    parser.add_argument("--rsqrt", action="store_true", help="Use 1/sqrt(D) weight")
+    parser.add_argument("--rsqrt", action="store_true", default=False, help="Use 1/sqrt(D) weight")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
     while True:
         step_idx += 1
-        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rqsrt)
+        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rsqrt)
         opt.zero_grad()
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
