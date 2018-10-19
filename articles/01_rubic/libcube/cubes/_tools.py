@@ -18,7 +18,7 @@ def scramble_cube(cube_env, scrambles_count):
     state = cube_env.initial_state
     result = []
     for depth in range(scrambles_count):
-        state = cube_env.transform_func(state, cube_env.sample_action())
+        state = cube_env.transform(state, cube_env.sample_action())
         result.append((depth+1, state))
     return result
 
@@ -31,11 +31,10 @@ def explore_state(cube_env, state):
     :return: tuple of two lists: [states reachable], [flag that state is initial]
     """
     assert isinstance(cube_env, _env.CubeEnv)
-    assert isinstance(state, cube_env.state_type)
     res_states, res_flags = [], []
     for action in cube_env.action_enum:
-        new_state = cube_env.transform_func(state, action)
-        is_init = cube_env.is_goal_pred(new_state)
+        new_state = cube_env.transform(state, action)
+        is_init = cube_env.is_goal(new_state)
         res_states.append(new_state)
         res_flags.append(is_init)
     return res_states, res_flags

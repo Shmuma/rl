@@ -13,20 +13,37 @@ class CubeEnv:
                  action_enum, transform_func, render_func, encoded_shape,
                  encode_func):
         self.name = name
-        self.state_type = state_type
+        self._state_type = state_type
         self.initial_state = initial_state
-        self.is_goal_pred = is_goal_pred
+        self._is_goal_pred = is_goal_pred
         self.action_enum = action_enum
-        self.transform_func = transform_func
-        self.render_func = render_func
+        self._transform_func = transform_func
+        self._render_func = render_func
         self.encoded_shape = encoded_shape
-        self.encode_func = encode_func
+        self._encode_func = encode_func
 
     def __repr__(self):
         return "CubeEnv(%r)" % self.name
 
     def sample_action(self):
         return self.action_enum(random.randrange(len(self.action_enum)))
+
+    def is_goal(self, state):
+        assert isinstance(state, self._state_type)
+        return self._is_goal_pred(state)
+
+    def transform(self, state, action):
+        assert isinstance(state, self._state_type)
+        assert isinstance(action, self.action_enum)
+        return self._transform_func(state, action)
+
+    def render(self, state):
+        assert isinstance(state, self._state_type)
+        return self._render_func(state)
+
+    def encode_inplace(self, target, state):
+        assert isinstance(state, self._state_type)
+        return self._encode_func(target, state)
 
 
 def register(cube_env):

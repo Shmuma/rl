@@ -47,10 +47,10 @@ def encode_states(cube_env, states):
 
         for i, st_list in enumerate(states):
             for j, state in enumerate(st_list):
-                cube_env.encode_func(encoded[i, j], state)
+                cube_env.encode_inplace(encoded[i, j], state)
     else:
         encoded = np.zeros((len(states), ) + cube_env.encoded_shape, dtype=np.float32)
         for i, state in enumerate(states):
-            cube_env.encode_func(encoded[i], state)
+            cube_env.encode_inplace(encoded[i], state)
 
     return encoded

@@ -30,7 +30,7 @@ if __name__ == "__main__":
             for _ in range(args.depth):
                 a = cube_env.sample_action()
                 path.append(a.value)
-                s = cube_env.transform_func(s, a)
+                s = cube_env.transform(s, a)
             fd_out.write(" ".join(map(str, path)) + "\n")
 
     pass
