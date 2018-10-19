@@ -13,7 +13,7 @@ class MCTS:
     """
     Monte Carlo Tree Search state and method
     """
-    def __init__(self, cube_env, state, exploration_c=1.0, virt_loss_nu=0.1, device="cpu"):
+    def __init__(self, cube_env, state, exploration_c=10.0, virt_loss_nu=10.0, device="cpu"):
         assert isinstance(cube_env, cubes.CubeEnv)
         assert cube_env.is_state(state)
 

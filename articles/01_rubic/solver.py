@@ -36,14 +36,14 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
         if r:
             log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                      step_no, step_no / (time.time() - ts))
-            return True
+            break
         step_no += 1
         if time.time() - ts > max_seconds:
             log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                      step_no, step_no / (time.time() - ts))
-            return False
-        if step_no > 200:
-            for _, cnt in zip(range(20), tree.act_counts.values()):
+            for _, cnt in zip(range(10), tree.act_counts.values()):
+                print(cnt)
+            for _, cnt in zip(range(10), tree.val_maxes.values()):
                 print(cnt)
             break
 
