@@ -17,11 +17,11 @@ from libcube import model
 
 log = logging.getLogger("train")
 
-SCRAMBLES_COUNT = 100
-ROUNDS_COUNT = 20
+SCRAMBLES_COUNT = 200
+ROUNDS_COUNT = 10
 REPORT_ITERS = 100
 CHECKPOINT_ITERS = 1000
-LEARNING_RATE = 1e-5
+LEARNING_RATE = 5e-5
 
 
 def make_train_data(cube_env, net, device, use_rqsrt=False):
