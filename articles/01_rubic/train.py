@@ -17,19 +17,20 @@ from libcube import model
 
 log = logging.getLogger("train")
 
-SCRAMBLES_COUNT = 200
-ROUNDS_COUNT = 10
+CUBES_PER_BATCH = 1000
+DEFAULT_SCRAMBLE_DEPTH = 200
 REPORT_ITERS = 100
 CHECKPOINT_ITERS = 1000
 LEARNING_RATE = 5e-5
 
 
-def make_train_data(cube_env, net, device, use_rqsrt=False):
+def make_train_data(cube_env, net, device, use_rqsrt=False, scramble_depth=DEFAULT_SCRAMBLE_DEPTH):
     net.eval()
     # scramble cube states and their depths
     data = []
-    for _ in range(ROUNDS_COUNT):
-        data.extend(cubes.scramble_cube(cube_env, SCRAMBLES_COUNT))
+    rounds = CUBES_PER_BATCH // scramble_depth
+    for _ in range(rounds):
+        data.extend(cubes.scramble_cube(cube_env, scramble_depth))
     random.shuffle(data)
     cube_depths, cube_states = zip(*data)
 
@@ -73,10 +74,12 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("--cuda", action="store_true", help="Enable cuda")
     parser.add_argument("--rsqrt", action="store_true", default=False, help="Use 1/sqrt(D) weight instead of 1/D")
+    parser.add_argument("--depth", type=int, default=DEFAULT_SCRAMBLE_DEPTH,
+                        help="Depth of cube scramble, default=%s" % DEFAULT_SCRAMBLE_DEPTH)
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    name = "%s-%s" % (args.env, args.name)
+    name = "%s-d%d-%s" % (args.env, args.depth, args.name)
     writer = SummaryWriter(comment="-" + name)
     save_path = os.path.join("saves", name)
     os.makedirs(save_path)
@@ -97,7 +100,8 @@ if __name__ == "__main__":
 
     while True:
         step_idx += 1
-        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rsqrt)
+        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rsqrt,
+                                                                scramble_depth=args.depth)
         opt.zero_grad()
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
@@ -123,7 +127,7 @@ if __name__ == "__main__":
             buf_loss.clear()
             dt = time.time() - ts
             ts = time.time()
-            speed = SCRAMBLES_COUNT * ROUNDS_COUNT * REPORT_ITERS / dt
+            speed = CUBES_PER_BATCH * REPORT_ITERS / dt
             log.info("%d: p_loss=%.3e, v_loss=%.3e, loss=%.3e, speed=%.1f cubes/s",
                      step_idx, m_policy_loss, m_value_loss, m_loss, speed)
             writer.add_scalar("loss_policy", m_policy_loss, step_idx)
