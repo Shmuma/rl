@@ -9,7 +9,7 @@ class Net(nn.Module):
     def __init__(self, input_shape, actions_count):
         super(Net, self).__init__()
 
-        self.input_size = np.prod(input_shape)
+        self.input_size = int(np.prod(input_shape))
         self.body = nn.Sequential(
             nn.Linear(self.input_size, 4096),
             nn.ELU(),
