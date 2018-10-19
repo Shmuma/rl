@@ -17,7 +17,7 @@ log = logging.getLogger("solver")
 
 
 DEFAULT_MAX_SECONDS = 60
-DUMP_ROOT_EVERY_SECONDS = 20
+DUMP_ROOT_EVERY_SECONDS = 10
 
 
 def generate_task(env, depth):

@@ -13,7 +13,7 @@ class MCTS:
     """
     Monte Carlo Tree Search state and method
     """
-    def __init__(self, cube_env, state, exploration_c=100, virt_loss_nu=10.0, device="cpu"):
+    def __init__(self, cube_env, state, exploration_c=10000, virt_loss_nu=10.0, device="cpu", random_action_depth=0):
         assert isinstance(cube_env, cubes.CubeEnv)
         assert cube_env.is_state(state)
 
@@ -21,6 +21,7 @@ class MCTS:
         self.root_state = state
         self.exploration_c = exploration_c
         self.virt_loss_nu = virt_loss_nu
+        self.random_action_depth = random_action_depth
         self.device = device
 
         # Tree state
@@ -59,13 +60,13 @@ class MCTS:
         act = np.argmax(fin, axis=0)
         print("Action: %s" % act)
 
-
     def search(self, net):
         s = self.root_state
         path_actions = []
         path_states = []
 
         # walking down the tree
+        d = 0
         while True:
             next_states = self.edges.get(s)
             if next_states is None:
@@ -73,7 +74,7 @@ class MCTS:
 
             act_counts = self.act_counts[s]
             N_sqrt = np.sqrt(np.sum(act_counts))
-            if N_sqrt < 1e-6:
+            if d < self.random_action_depth or N_sqrt < 1e-6:
                 act = random.randrange(len(self.cube_env.action_enum))
             else:
                 u = self.exploration_c * N_sqrt / (act_counts + 1)
@@ -84,6 +85,7 @@ class MCTS:
             path_actions.append(act)
             path_states.append(s)
             s = next_states[act]
+            d += 1
 
         # reached the leaf state, expand it
         child_states, child_goal = cubes.explore_state(self.cube_env, s)
