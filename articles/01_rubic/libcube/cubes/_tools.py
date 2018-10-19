@@ -35,7 +35,7 @@ def explore_state(cube_env, state):
     res_states, res_flags = [], []
     for action in cube_env.action_enum:
         new_state = cube_env.transform_func(state, action)
-        is_init = cube_env.is_initial_pred(new_state)
+        is_init = cube_env.is_goal_pred(new_state)
         res_states.append(new_state)
         res_flags.append(is_init)
     return res_states, res_flags

@@ -282,6 +282,6 @@ def encode_inplace(target, state):
 
 # register env
 _env.register(_env.CubeEnv(name="cube3x3", state_type=State, initial_state=initial_state,
-                           is_initial_pred=is_initial, action_enum=Action,
+                           is_goal_pred=is_initial, action_enum=Action,
                            transform_func=transform, render_func=render,
                            encoded_shape=encoded_shape, encode_func=encode_inplace))

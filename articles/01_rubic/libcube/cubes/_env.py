@@ -9,13 +9,13 @@ _registry = {}
 
 
 class CubeEnv:
-    def __init__(self, name, state_type, initial_state, is_initial_pred,
+    def __init__(self, name, state_type, initial_state, is_goal_pred,
                  action_enum, transform_func, render_func, encoded_shape,
                  encode_func):
         self.name = name
         self.state_type = state_type
         self.initial_state = initial_state
-        self.is_initial_pred = is_initial_pred
+        self.is_goal_pred = is_goal_pred
         self.action_enum = action_enum
         self.transform_func = transform_func
         self.render_func = render_func
