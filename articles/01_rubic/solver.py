@@ -21,6 +21,8 @@ def generate_task(env, depth):
 def solve_task(env, task, net, cube_idx=None):
     log_prefix = "" if cube_idx is None else "cube %d: " % cube_idx
     log.info("%sGot task %s, solving...", log_prefix, task)
+    cube_state = env.scramble(map(env.action_enum, task))
+    log.info("%sCube state %s", log_prefix, cube_state)
 
 
 if __name__ == "__main__":
@@ -51,6 +53,7 @@ if __name__ == "__main__":
         task = list(map(int, args.perm.split(',')))
         solve_task(cube_env, task, net)
     elif args.input is not None:
+        log.info("Processing scrambles from %s", args.input)
         with open(args.input, 'rt', encoding='utf-8') as fd:
             for idx, l in enumerate(fd):
                 task = list(map(int, l.strip().split(',')))

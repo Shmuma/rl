@@ -25,9 +25,7 @@ class CubeEnv:
     def __repr__(self):
         return "CubeEnv(%r)" % self.name
 
-    def sample_action(self):
-        return self.action_enum(random.randrange(len(self.action_enum)))
-
+    # wrapper functions
     def is_goal(self, state):
         assert isinstance(state, self._state_type)
         return self._is_goal_pred(state)
@@ -44,6 +42,18 @@ class CubeEnv:
     def encode_inplace(self, target, state):
         assert isinstance(state, self._state_type)
         return self._encode_func(target, state)
+
+    # Utility functions
+    def sample_action(self):
+        return self.action_enum(random.randrange(len(self.action_enum)))
+
+    def scramble(self, actions):
+        s = self.initial_state
+        for action in actions:
+            s = self.transform(s, action)
+        return s
+
+
 
 
 def register(cube_env):
