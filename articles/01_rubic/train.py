@@ -69,19 +69,19 @@ def make_train_data(cube_env, net, device, use_rqsrt=False):
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO)
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--cube", required=True, help="Type of cube to train, supported types=%s" % cubes.names())
+    parser.add_argument("-e", "--env", required=True, help="Type of env to train, supported types=%s" % cubes.names())
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("--cuda", action="store_true", help="Enable cuda")
-    parser.add_argument("--rsqrt", action="store_true", default=False, help="Use 1/sqrt(D) weight")
+    parser.add_argument("--rsqrt", action="store_true", default=False, help="Use 1/sqrt(D) weight instead of 1/D")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    name = "%s-%s" % (args.cube, args.name)
+    name = "%s-%s" % (args.env, args.name)
     writer = SummaryWriter(comment="-" + name)
     save_path = os.path.join("saves", name)
     os.makedirs(save_path)
 
-    cube_env = cubes.get(args.cube)
+    cube_env = cubes.get(args.env)
     assert isinstance(cube_env, cubes.CubeEnv)
 
     log.info("Selected cube: %s", cube_env)
