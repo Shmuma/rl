@@ -39,22 +39,17 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
         if r:
             log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                      step_no, step_no / (time.time() - ts))
-            break
+            return True
         step_no += 1
         if time.time() - ts > max_seconds:
             log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                      step_no, step_no / (time.time() - ts))
-            # for _, cnt in zip(range(10), tree.act_counts.values()):
-            #     print(cnt)
-            # for _, cnt in zip(range(10), tree.val_maxes.values()):
-            #     print(cnt)
-            break
-        if DUMP_ROOT_EVERY_SECONDS > 0:
-            t = (time.time() - ts) // DUMP_ROOT_EVERY_SECONDS
-            if t > tb:
-                tree.dump_root()
-                tb = t
-    tree.dump_root()
+            return False
+        # if DUMP_ROOT_EVERY_SECONDS > 0:
+        #     t = (time.time() - ts) // DUMP_ROOT_EVERY_SECONDS
+        #     if t > tb:
+        #         tree.dump_root()
+        #         tb = t
 
 
 if __name__ == "__main__":
@@ -90,8 +85,13 @@ if __name__ == "__main__":
         solve_task(cube_env, task, net, max_seconds=args.max_time, device=device)
     elif args.input is not None:
         log.info("Processing scrambles from %s", args.input)
+        count = 0
+        solved = 0
         with open(args.input, 'rt', encoding='utf-8') as fd:
             for idx, l in enumerate(fd):
                 task = list(map(int, l.strip().split(',')))
-                solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time, device=device)
+                if solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time, device=device):
+                    solved += 1
+                count += 1
+        log.info("Solved %d out of %d cubes, which is %.2f%% success ratio", solved, count, 100*solved / count)
 
