@@ -106,17 +106,20 @@ if __name__ == "__main__":
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
         value_loss_t = (value_out_t - y_value_t)**2
+        raw_value_loss_t = value_loss_t.mean()
         value_loss_t *= weights_t
         value_loss_t = value_loss_t.mean()
         policy_loss_t = F.cross_entropy(policy_out_t, y_policy_t, reduction='none')
+        raw_policy_loss_t = policy_loss_t.mean()
         policy_loss_t *= weights_t
         policy_loss_t = policy_loss_t.mean()
         loss_t = value_loss_t + policy_loss_t
         loss_t.backward()
         opt.step()
-        buf_policy_loss.append(policy_loss_t.item())
-        buf_value_loss.append(value_loss_t.item())
-        buf_loss.append(loss_t.item())
+        raw_loss_t = raw_policy_loss_t + raw_value_loss_t
+        buf_policy_loss.append(raw_policy_loss_t.item())
+        buf_value_loss.append(raw_value_loss_t.item())
+        buf_loss.append(raw_loss_t.item())
 
         if step_idx % REPORT_ITERS == 0:
             m_policy_loss = np.mean(buf_policy_loss)
