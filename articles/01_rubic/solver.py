@@ -35,7 +35,6 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
 
     while True:
         r = tree.search(net)
-#        tree.dump_root()
         if r:
             log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                      step_no, step_no / (time.time() - ts))
@@ -47,11 +46,6 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
                      step_no, step_no / (time.time() - ts))
             tree.dump_root()
             return False
-        # if DUMP_ROOT_EVERY_SECONDS > 0:
-        #     t = (time.time() - ts) // DUMP_ROOT_EVERY_SECONDS
-        #     if t > tb:
-        #         tree.dump_root()
-        #         tb = t
 
 
 if __name__ == "__main__":

@@ -95,6 +95,7 @@ if __name__ == "__main__":
 
     step_idx = 0
     buf_policy_loss, buf_value_loss, buf_loss = [], [], []
+    buf_policy_loss_raw, buf_value_loss_raw, buf_loss_raw = [], [], []
     ts = time.time()
     best_loss = None
 
@@ -106,20 +107,25 @@ if __name__ == "__main__":
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
         value_loss_t = (value_out_t - y_value_t)**2
-        raw_value_loss_t = value_loss_t.mean()
+        value_loss_raw_t = value_loss_t.mean()
         value_loss_t *= weights_t
         value_loss_t = value_loss_t.mean()
         policy_loss_t = F.cross_entropy(policy_out_t, y_policy_t, reduction='none')
-        raw_policy_loss_t = policy_loss_t.mean()
+        policy_loss_raw_t = policy_loss_t.mean()
         policy_loss_t *= weights_t
         policy_loss_t = policy_loss_t.mean()
+        loss_raw_t = policy_loss_raw_t + value_loss_raw_t
         loss_t = value_loss_t + policy_loss_t
         loss_t.backward()
         opt.step()
-        raw_loss_t = raw_policy_loss_t + raw_value_loss_t
-        buf_policy_loss.append(raw_policy_loss_t.item())
-        buf_value_loss.append(raw_value_loss_t.item())
-        buf_loss.append(raw_loss_t.item())
+
+        # save losses
+        buf_policy_loss.append(policy_loss_t.item())
+        buf_value_loss.append(value_loss_t.item())
+        buf_loss.append(loss_t.item())
+        buf_loss_raw.append(loss_raw_t.item())
+        buf_value_loss_raw.append(value_loss_raw_t.item())
+        buf_policy_loss_raw.append(policy_loss_raw_t.item())
 
         if step_idx % REPORT_ITERS == 0:
             m_policy_loss = np.mean(buf_policy_loss)
@@ -128,6 +134,13 @@ if __name__ == "__main__":
             buf_value_loss.clear()
             buf_policy_loss.clear()
             buf_loss.clear()
+            m_policy_loss_raw = np.mean(buf_policy_loss_raw)
+            m_value_loss_raw = np.mean(buf_value_loss_raw)
+            m_loss_raw = np.mean(buf_loss_raw)
+            buf_value_loss_raw.clear()
+            buf_policy_loss_raw.clear()
+            buf_loss_raw.clear()
+
             dt = time.time() - ts
             ts = time.time()
             speed = CUBES_PER_BATCH * REPORT_ITERS / dt
@@ -136,6 +149,9 @@ if __name__ == "__main__":
             writer.add_scalar("loss_policy", m_policy_loss, step_idx)
             writer.add_scalar("loss_value", m_value_loss, step_idx)
             writer.add_scalar("loss", m_loss, step_idx)
+            writer.add_scalar("loss_policy_raw", m_policy_loss_raw, step_idx)
+            writer.add_scalar("loss_value_raw", m_value_loss_raw, step_idx)
+            writer.add_scalar("loss_raw", m_loss_raw, step_idx)
             writer.add_scalar("speed", speed, step_idx)
 
             if best_loss is None:
