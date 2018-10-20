@@ -8,6 +8,7 @@ import numpy as np
 
 import torch
 import torch.optim as optim
+import torch.optim.lr_scheduler as scheduler
 import torch.nn.functional as F
 
 from tensorboardX import SummaryWriter
@@ -22,6 +23,7 @@ DEFAULT_SCRAMBLE_DEPTH = 200
 REPORT_ITERS = 100
 CHECKPOINT_ITERS = 1000
 LEARNING_RATE = 5e-5
+LR_DECAY_ITERS = 5000
 
 
 def make_train_data(cube_env, net, device, use_rqsrt=False, scramble_depth=DEFAULT_SCRAMBLE_DEPTH):
@@ -92,6 +94,7 @@ if __name__ == "__main__":
     net = model.Net(cube_env.encoded_shape, len(cube_env.action_enum)).to(device)
     print(net)
     opt = optim.RMSprop(net.parameters(), lr=LEARNING_RATE)
+    sched = scheduler.LambdaLR(opt, lr_lambda=lambda e: e*0.95)
 
     step_idx = 0
     buf_policy_loss, buf_value_loss, buf_loss = [], [], []
@@ -100,6 +103,10 @@ if __name__ == "__main__":
     best_loss = None
 
     while True:
+        if step_idx % LR_DECAY_ITERS == 0:
+            sched.step()
+            writer.add_scalar("lr", sched.get_lr()[0], step_idx)
+
         step_idx += 1
         x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rsqrt,
                                                                 scramble_depth=args.depth)
@@ -164,3 +171,4 @@ if __name__ == "__main__":
         if step_idx % CHECKPOINT_ITERS == 0:
             name = os.path.join(save_path, "chpt_%06d.dat" % step_idx)
             torch.save(net.state_dict(), name)
+
