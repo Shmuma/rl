@@ -94,7 +94,7 @@ if __name__ == "__main__":
     net = model.Net(cube_env.encoded_shape, len(cube_env.action_enum)).to(device)
     print(net)
     opt = optim.RMSprop(net.parameters(), lr=LEARNING_RATE)
-    sched = scheduler.LambdaLR(opt, lr_lambda=lambda e: e*0.95)
+    sched = scheduler.StepLR(opt, 1, gamma=0.95)
 
     step_idx = 0
     buf_policy_loss, buf_value_loss, buf_loss = [], [], []
@@ -105,6 +105,7 @@ if __name__ == "__main__":
     while True:
         if step_idx % LR_DECAY_ITERS == 0:
             sched.step()
+            log.info("LR decrease to %s", sched.get_lr()[0])
             writer.add_scalar("lr", sched.get_lr()[0], step_idx)
 
         step_idx += 1
