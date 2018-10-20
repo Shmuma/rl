@@ -39,11 +39,13 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
         if r:
             log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                      step_no, step_no / (time.time() - ts))
+            tree.dump_root()
             return True
         step_no += 1
         if time.time() - ts > max_seconds:
             log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                      step_no, step_no / (time.time() - ts))
+            tree.dump_root()
             return False
         # if DUMP_ROOT_EVERY_SECONDS > 0:
         #     t = (time.time() - ts) // DUMP_ROOT_EVERY_SECONDS
