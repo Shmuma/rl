@@ -41,7 +41,15 @@ class MCTS:
         return "MCTS(states=%d)" % len(self.edges)
 
     def dump_root(self):
-        s = self.root_state
+        print("Root state:")
+        self.dump_state(self.root_state)
+        # states, _ = cubes.explore_state(self.cube_env, self.root_state)
+        # for idx, s in enumerate(states):
+        #     print("")
+        #     print("State %d" % idx)
+        #     self.dump_state(s)
+
+    def dump_state(self, s):
         print("")
         print("act_counts: %s" % ", ".join(map(lambda v: "%8d" % v, self.act_counts[s].tolist())))
         print("probs:      %s" % ", ".join(map(lambda v: "%.2e" % v, self.prob_actions[s].tolist())))
@@ -56,7 +64,7 @@ class MCTS:
         q = self.val_maxes[s] - self.virt_loss[s]
         print("q:          %s" % ", ".join(map(lambda v: "%.2e" % v, q.tolist())))
         fin = u + q
-        print("u + q:      %s" % ", ".join(map(lambda v: "%.2e" % v, fin.tolist())))
+        print("u*prob + q: %s" % ", ".join(map(lambda v: "%.2e" % v, fin.tolist())))
         act = np.argmax(fin, axis=0)
         print("Action: %s" % act)
 
