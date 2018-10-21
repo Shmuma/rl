@@ -32,14 +32,14 @@ def make_train_data(cube_env, net, device, use_rqsrt=False, scramble_depth=DEFAU
     data = []
     rounds = CUBES_PER_BATCH // scramble_depth
     for _ in range(rounds):
-        data.extend(cubes.scramble_cube(cube_env, scramble_depth))
+        data.extend(cube_env.scramble_cube(scramble_depth))
     random.shuffle(data)
     cube_depths, cube_states = zip(*data)
 
     # explore each state by doing 1-step BFS search and keep a mask of goal states (for reward calculation)
     explored_states, explored_goals = [], []
     for s in cube_states:
-        states, goals = cubes.explore_state(cube_env, s)
+        states, goals = cube_env.explore_state(s)
         explored_states.append(states)
         explored_goals.append(goals)
 

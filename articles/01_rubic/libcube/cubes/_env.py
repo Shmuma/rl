@@ -56,7 +56,35 @@ class CubeEnv:
     def is_state(self, state):
         return isinstance(state, self._state_type)
 
+    def scramble_cube(self, scrambles_count):
+        """
+        Generate sequence of random cube scrambles
+        :param scrambles_count: count of scrambles to perform
+        :return: list of tuples (depth, state)
+        """
+        assert isinstance(scrambles_count, int)
+        assert scrambles_count > 0
 
+        state = self.initial_state
+        result = []
+        for depth in range(scrambles_count):
+            state = self.transform(state, self.sample_action())
+            result.append((depth+1, state))
+        return result
+
+    def explore_state(self, state):
+        """
+        Expand cube state by applying every action to it
+        :param state: state to explore
+        :return: tuple of two lists: [states reachable], [flag that state is initial]
+        """
+        res_states, res_flags = [], []
+        for action in self.action_enum:
+            new_state = self.transform(state, action)
+            is_init = self.is_goal(new_state)
+            res_states.append(new_state)
+            res_flags.append(is_init)
+        return res_states, res_flags
 
 
 def register(cube_env):

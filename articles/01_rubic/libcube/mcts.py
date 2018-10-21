@@ -96,7 +96,7 @@ class MCTS:
             d += 1
 
         # reached the leaf state, expand it
-        child_states, child_goal = cubes.explore_state(self.cube_env, s)
+        child_states, child_goal = self.cube_env.explore_state(s)
         self.edges[s] = child_states
 
         # calculate policy and values for our states
