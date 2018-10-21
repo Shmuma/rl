@@ -26,7 +26,7 @@ def generate_task(env, depth):
     for _ in range(depth):
         a = env.sample_action(prev_action=prev_a)
         res.append(a)
-        prev_a = prev
+        prev_a = a
     return res
 
 
