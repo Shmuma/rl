@@ -10,14 +10,15 @@ _registry = {}
 
 class CubeEnv:
     def __init__(self, name, state_type, initial_state, is_goal_pred,
-                 action_enum, transform_func, render_func, encoded_shape,
-                 encode_func):
+                 action_enum, transform_func, inverse_action_func,
+                 render_func, encoded_shape, encode_func):
         self.name = name
         self._state_type = state_type
         self.initial_state = initial_state
         self._is_goal_pred = is_goal_pred
         self.action_enum = action_enum
         self._transform_func = transform_func
+        self._inverse_action_func = inverse_action_func
         self._render_func = render_func
         self.encoded_shape = encoded_shape
         self._encode_func = encode_func
@@ -44,8 +45,11 @@ class CubeEnv:
         return self._encode_func(target, state)
 
     # Utility functions
-    def sample_action(self):
-        return self.action_enum(random.randrange(len(self.action_enum)))
+    def sample_action(self, prev_action=None):
+        while True:
+            res = self.action_enum(random.randrange(len(self.action_enum)))
+            if prev_action is None or self._inverse_action_func(res) != prev_action:
+                return res
 
     def scramble(self, actions):
         s = self.initial_state
@@ -67,8 +71,11 @@ class CubeEnv:
 
         state = self.initial_state
         result = []
+        prev_action = None
         for depth in range(scrambles_count):
-            state = self.transform(state, self.sample_action())
+            action = self.sample_action(prev_action=prev_action)
+            state = self.transform(state, action)
+            prev_action = action
             result.append((depth+1, state))
         return result
 

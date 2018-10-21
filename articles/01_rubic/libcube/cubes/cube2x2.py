@@ -168,5 +168,5 @@ def encode_inplace(target, state):
 # register env
 _env.register(_env.CubeEnv(name="cube2x2", state_type=State, initial_state=initial_state,
                            is_goal_pred=is_initial, action_enum=Action,
-                           transform_func=transform, render_func=render,
-                           encoded_shape=encoded_shape, encode_func=encode_inplace))
+                           transform_func=transform, inverse_action_func=inverse_action,
+                           render_func=render, encoded_shape=encoded_shape, encode_func=encode_inplace))

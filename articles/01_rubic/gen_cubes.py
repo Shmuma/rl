@@ -27,8 +27,10 @@ if __name__ == "__main__":
         for _ in range(args.number):
             s = cube_env.initial_state
             path = []
+            prev_a = None
             for _ in range(args.depth):
-                a = cube_env.sample_action()
+                a = cube_env.sample_action(prev_action=prev_a)
                 path.append(a.value)
                 s = cube_env.transform(s, a)
+                prev_a = a
             fd_out.write(",".join(map(str, path)) + "\n")

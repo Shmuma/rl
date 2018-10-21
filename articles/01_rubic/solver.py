@@ -21,7 +21,13 @@ DUMP_ROOT_EVERY_SECONDS = 10
 
 
 def generate_task(env, depth):
-    return [env.sample_action().value for _ in range(depth)]
+    res = []
+    prev_a = None
+    for _ in range(depth):
+        a = env.sample_action(prev_action=prev_a)
+        res.append(a)
+        prev_a = prev
+    return res
 
 
 def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, device="cpu"):
