@@ -60,7 +60,6 @@ def encode_states(cube_env, states):
 
 def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=True):
     assert isinstance(cube_env, cubes.CubeEnv)
-    net.eval()
     # scramble cube states and their depths
     data = []
     rounds = batch_size // scramble_depth
@@ -103,5 +102,4 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
     enc_input_t = torch.tensor(enc_input).to(device)
     cube_depths_t = torch.tensor(cube_depths, dtype=torch.float32).to(device)
     weights_t = 1/cube_depths_t
-    net.train()
     return enc_input_t.detach(), weights_t.detach(), max_act_t.detach(), max_val_t.detach()
