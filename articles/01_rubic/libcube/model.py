@@ -103,4 +103,4 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
     cube_depths_t = torch.tensor(cube_depths, dtype=torch.float32).to(device)
     weights_t = 1/cube_depths_t
     net.train()
-    return enc_input_t.detach(), weights_t.detach(), max_act_t.detach(), max_val_t.detach()
+    return enc_input_t, weights_t, max_act_t, max_val_t
