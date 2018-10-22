@@ -64,7 +64,7 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
     data = []
     rounds = batch_size // scramble_depth
     for _ in range(rounds):
-        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=False))
+        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=True))
     if shuffle:
         random.shuffle(data)
     cube_depths, cube_states = zip(*data)
