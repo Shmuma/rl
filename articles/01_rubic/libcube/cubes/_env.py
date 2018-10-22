@@ -36,6 +36,9 @@ class CubeEnv:
         assert isinstance(action, self.action_enum)
         return self._transform_func(state, action)
 
+    def inverse_action(self, action):
+        return self._inverse_action_func(action)
+
     def render(self, state):
         assert isinstance(state, self._state_type)
         return self._render_func(state)
@@ -48,7 +51,7 @@ class CubeEnv:
     def sample_action(self, prev_action=None):
         while True:
             res = self.action_enum(random.randrange(len(self.action_enum)))
-            if prev_action is None or self._inverse_action_func(res) != prev_action:
+            if prev_action is None or self.inverse_action(res) != prev_action:
                 return res
 
     def scramble(self, actions):
@@ -60,11 +63,12 @@ class CubeEnv:
     def is_state(self, state):
         return isinstance(state, self._state_type)
 
-    def scramble_cube(self, scrambles_count):
+    def scramble_cube(self, scrambles_count, return_inverse=False):
         """
         Generate sequence of random cube scrambles
         :param scrambles_count: count of scrambles to perform
-        :return: list of tuples (depth, state)
+        :param return_inverse: if True, inverse action is returned
+        :return: list of tuples (depth, state[, inverse_action])
         """
         assert isinstance(scrambles_count, int)
         assert scrambles_count > 0
@@ -76,7 +80,12 @@ class CubeEnv:
             action = self.sample_action(prev_action=prev_action)
             state = self.transform(state, action)
             prev_action = action
-            result.append((depth+1, state))
+            if return_inverse:
+                inv_action = self.inverse_action(action)
+                res = (depth+1, state, inv_action)
+            else:
+                res = (depth+1, state)
+            result.append(res)
         return result
 
     def explore_state(self, state):
