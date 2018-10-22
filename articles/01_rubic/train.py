@@ -3,7 +3,6 @@ import os
 import time
 import argparse
 import logging
-import random
 import numpy as np
 
 import torch
@@ -26,63 +25,12 @@ LEARNING_RATE = 1e-4
 LR_DECAY_ITERS = 5000
 
 
-def make_train_data(cube_env, net, device, use_rqsrt=False, scramble_depth=DEFAULT_SCRAMBLE_DEPTH):
-    net.eval()
-    # scramble cube states and their depths
-    data = []
-    rounds = CUBES_PER_BATCH // scramble_depth
-    for _ in range(rounds):
-        data.extend(cube_env.scramble_cube(scramble_depth))
-    random.shuffle(data)
-    cube_depths, cube_states = zip(*data)
-
-    # explore each state by doing 1-step BFS search and keep a mask of goal states (for reward calculation)
-    explored_states, explored_goals = [], []
-    for s in cube_states:
-        states, goals = cube_env.explore_state(s)
-        explored_states.append(states)
-        explored_goals.append(goals)
-
-    # obtain network's values for all explored states
-    enc_explored = model.encode_states(cube_env, explored_states)           # shape: (states, actions, encoded_shape)
-    shape = enc_explored.shape
-    enc_explored_t = torch.tensor(enc_explored).to(device)
-    enc_explored_t = enc_explored_t.view(shape[0]*shape[1], *shape[2:])     # shape: (states*actions, encoded_shape)
-    value_t = net(enc_explored_t, value_only=True)
-    value_t = value_t.squeeze(-1).view(shape[0], shape[1])                  # shape: (states, actions)
-    # add reward to the values
-    goals_mask_t = torch.tensor(explored_goals, dtype=torch.int8).to(device)
-    goals_mask_t += goals_mask_t - 1                                        # has 1 at final states and -1 elsewhere
-
-    # my version
-    value_t = value_t.clamp(-1, 1)
-    value_t = torch.max(value_t, goals_mask_t.type(dtype=torch.float32))
-
-    # version from the paper
-#    value_t += goals_mask_t.type(dtype=torch.float32)
-
-    # find target value and target policy
-    max_val_t, max_act_t = value_t.max(dim=1)
-
-    # create train input
-    enc_input = model.encode_states(cube_env, cube_states)
-    enc_input_t = torch.tensor(enc_input).to(device)
-    cube_depths_t = torch.tensor(cube_depths, dtype=torch.float32).to(device)
-    if use_rqsrt:
-        weights_t = torch.rsqrt(cube_depths_t)
-    else:
-        weights_t = 1/cube_depths_t
-    net.train()
-    return enc_input_t, weights_t, max_act_t, max_val_t
-
-
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", required=True, help="Type of env to train, supported types=%s" % cubes.names())
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("--cuda", action="store_true", help="Enable cuda")
-    parser.add_argument("--rsqrt", action="store_true", default=False, help="Use 1/sqrt(D) weight instead of 1/D")
     parser.add_argument("--depth", type=int, default=DEFAULT_SCRAMBLE_DEPTH,
                         help="Depth of cube scramble, default=%s" % DEFAULT_SCRAMBLE_DEPTH)
     args = parser.parse_args()
@@ -116,8 +64,8 @@ if __name__ == "__main__":
             writer.add_scalar("lr", sched.get_lr()[0], step_idx)
 
         step_idx += 1
-        x_t, weights_t, y_policy_t, y_value_t = make_train_data(cube_env, net, device, use_rqsrt=args.rsqrt,
-                                                                scramble_depth=args.depth)
+        x_t, weights_t, y_policy_t, y_value_t = model.make_train_data(
+            cube_env, net, device, batch_size=CUBES_PER_BATCH, scramble_depth=args.depth)
         opt.zero_grad()
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)

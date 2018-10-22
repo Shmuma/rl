@@ -63,7 +63,7 @@ class CubeEnv:
     def is_state(self, state):
         return isinstance(state, self._state_type)
 
-    def scramble_cube(self, scrambles_count, return_inverse=False):
+    def scramble_cube(self, scrambles_count, return_inverse=False, include_initial=False):
         """
         Generate sequence of random cube scrambles
         :param scrambles_count: count of scrambles to perform
@@ -75,6 +75,9 @@ class CubeEnv:
 
         state = self.initial_state
         result = []
+        if include_initial:
+            assert not return_inverse
+            result.append((1, state))
         prev_action = None
         for depth in range(scrambles_count):
             action = self.sample_action(prev_action=prev_action)
