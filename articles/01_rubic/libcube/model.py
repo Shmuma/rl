@@ -60,25 +60,24 @@ def encode_states(cube_env, states):
 
 def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=True):
     assert isinstance(cube_env, cubes.CubeEnv)
-    net.eval()
     # scramble cube states and their depths
     data = []
     rounds = batch_size // scramble_depth
     for _ in range(rounds):
-        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=True))
+        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=False))
     if shuffle:
         random.shuffle(data)
     cube_depths, cube_states = zip(*data)
 
     # explore each state by doing 1-step BFS search and keep a mask of goal states (for reward calculation)
     explored_states, explored_goals = [], []
-    goal_indices = []
+#    goal_indices = []
     for idx, s in enumerate(cube_states):
         states, goals = cube_env.explore_state(s)
         explored_states.append(states)
         explored_goals.append(goals)
-        if cube_env.is_goal(s):
-            goal_indices.append(idx)
+#        if cube_env.is_goal(s):
+#            goal_indices.append(idx)
 
     # obtain network's values for all explored states
     enc_explored = encode_states(cube_env, explored_states)           # shape: (states, actions, encoded_shape)
@@ -94,13 +93,12 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
 
     # find target value and target policy
     max_val_t, max_act_t = value_t.max(dim=1)
-    max_val_t[goal_indices] = 1.0
-    max_act_t[goal_indices] = 0
+#    max_val_t[goal_indices] = 1.0
+#    max_act_t[goal_indices] = 0
 
     # create train input
     enc_input = encode_states(cube_env, cube_states)
     enc_input_t = torch.tensor(enc_input).to(device)
     cube_depths_t = torch.tensor(cube_depths, dtype=torch.float32).to(device)
     weights_t = 1/cube_depths_t
-    net.train()
-    return enc_input_t, weights_t, max_act_t, max_val_t
+    return enc_input_t.detach(), weights_t.detach(), max_act_t.detach(), max_val_t.detach()
