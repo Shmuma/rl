@@ -65,7 +65,7 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
     data = []
     rounds = batch_size // scramble_depth
     for _ in range(rounds):
-        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=True))
+        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=False))
     if shuffle:
         random.shuffle(data)
     cube_depths, cube_states = zip(*data)
@@ -94,8 +94,9 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
 
     # find target value and target policy
     max_val_t, max_act_t = value_t.max(dim=1)
-    max_val_t[goal_indices] = 1.0
-    max_act_t[goal_indices] = 0
+    # if goal_indices:
+    #     max_val_t[goal_indices] = 1.0
+    #     max_act_t[goal_indices] = 0
 
     # create train input
     enc_input = encode_states(cube_env, cube_states)
