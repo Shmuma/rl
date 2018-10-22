@@ -61,7 +61,7 @@ if __name__ == "__main__":
     opt = optim.RMSprop(net.parameters(), lr=LEARNING_RATE)
     sched = scheduler.StepLR(opt, 1, gamma=0.95)
 
-    data_queue = mp.Queue(maxsize=10)
+    data_queue = mp.Queue(maxsize=3)
     data_proc = mp.Process(target=train_data_proc, args=(cube_env, net, device.type, args.depth, data_queue))
     data_proc.start()
 
