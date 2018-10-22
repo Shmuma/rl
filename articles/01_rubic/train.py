@@ -53,7 +53,14 @@ def make_train_data(cube_env, net, device, use_rqsrt=False, scramble_depth=DEFAU
     # add reward to the values
     goals_mask_t = torch.tensor(explored_goals, dtype=torch.int8).to(device)
     goals_mask_t += goals_mask_t - 1                                        # has 1 at final states and -1 elsewhere
-    value_t += goals_mask_t.type(dtype=torch.float32)
+
+    # my version
+    value_t = value_t.clamp(-1, 1)
+    value_t = torch.max(value_t, goals_mask_t.type(dtype=torch.float32))
+
+    # version from the paper
+#    value_t += goals_mask_t.type(dtype=torch.float32)
+
     # find target value and target policy
     max_val_t, max_act_t = value_t.max(dim=1)
 
