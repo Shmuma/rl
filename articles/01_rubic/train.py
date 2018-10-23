@@ -22,6 +22,8 @@ DEFAULT_SCRAMBLE_DEPTH = 200
 REPORT_ITERS = 100
 CHECKPOINT_ITERS = 1000
 LEARNING_RATE = 1e-6
+
+LR_DECAY = False
 LR_DECAY_ITERS = 5000
 
 
@@ -49,7 +51,7 @@ if __name__ == "__main__":
     net = model.Net(cube_env.encoded_shape, len(cube_env.action_enum)).to(device)
     print(net)
     opt = optim.RMSprop(net.parameters(), lr=LEARNING_RATE)
-#    sched = scheduler.StepLR(opt, 1, gamma=0.95)
+    sched = scheduler.StepLR(opt, 1, gamma=0.95) if LR_DECAY else None
 
     step_idx = 0
     buf_policy_loss, buf_value_loss, buf_loss = [], [], []
@@ -58,10 +60,10 @@ if __name__ == "__main__":
     best_loss = None
 
     while True:
-        # if step_idx % LR_DECAY_ITERS == 0:
-        #     sched.step()
-        #     log.info("LR decrease to %s", sched.get_lr()[0])
-        #     writer.add_scalar("lr", sched.get_lr()[0], step_idx)
+        if LR_DECAY and step_idx % LR_DECAY_ITERS == 0:
+            sched.step()
+            log.info("LR decrease to %s", sched.get_lr()[0])
+            writer.add_scalar("lr", sched.get_lr()[0], step_idx)
 
         step_idx += 1
         x_t, weights_t, y_policy_t, y_value_t = model.make_train_data(
