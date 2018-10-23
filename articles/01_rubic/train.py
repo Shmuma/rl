@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     net = model.Net(cube_env.encoded_shape, len(cube_env.action_enum)).to(device)
     print(net)
-    opt = optim.RMSprop(net.parameters(), lr=LEARNING_RATE)
+    opt = optim.Adam(net.parameters(), lr=LEARNING_RATE)
     sched = scheduler.StepLR(opt, 1, gamma=0.95) if LR_DECAY else None
 
     step_idx = 0

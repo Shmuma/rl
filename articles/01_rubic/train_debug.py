@@ -59,7 +59,7 @@ if __name__ == "__main__":
     net.eval()
     log.info("Network loaded from %s", args.model)
 
-    model.make_train_data(cube_env, net, device='cpu', batch_size=10, scramble_depth=2, shuffle=False)
+#    model.make_train_data(cube_env, net, device='cpu', batch_size=10, scramble_depth=2, shuffle=False)
 
     states_by_depth = gen_states(cube_env, max_depth=MAX_DEPTH, round_counts=ROUND_COUNTS)
     # for idx, states in enumerate(states_by_depth):
