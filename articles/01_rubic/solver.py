@@ -4,9 +4,11 @@ Solver using MCTS and trained model
 """
 import time
 import argparse
+import random
 import logging
-import itertools
 
+import seaborn as sns
+import matplotlib.pylab as plt
 import torch
 
 from libcube import cubes
@@ -17,7 +19,8 @@ log = logging.getLogger("solver")
 
 
 DEFAULT_MAX_SECONDS = 60
-DUMP_ROOT_EVERY_SECONDS = 10
+PLOT_MAX_DEPTHS = 20
+PLOT_TASKS = 100
 
 
 def generate_task(env, depth):
@@ -25,7 +28,7 @@ def generate_task(env, depth):
     prev_a = None
     for _ in range(depth):
         a = env.sample_action(prev_action=prev_a)
-        res.append(a)
+        res.append(a.value)
         prev_a = a
     return res
 
@@ -44,14 +47,40 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
         if r:
             log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                      step_no, step_no / (time.time() - ts))
-            tree.dump_root()
-            return True
+#            tree.dump_root()
+            return step_no
         step_no += 1
         if time.time() - ts > max_seconds:
             log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                      step_no, step_no / (time.time() - ts))
-            tree.dump_root()
-            return False
+#            tree.dump_root()
+            return -1
+
+
+def produce_plots(cube_env, prefix, net, max_seconds=DEFAULT_MAX_SECONDS, device="cpu"):
+    sns.set()
+    data_solved = []
+    data_steps = []
+
+    for depth in range(1, PLOT_MAX_DEPTHS+1):
+        log.info("Process depth %d", depth)
+        for task_idx in range(PLOT_TASKS):
+            task = generate_task(cube_env, depth)
+            steps = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds, device=device)
+            data_solved.append((depth, 0 if steps < 0 else 1))
+            if steps >= 0:
+                data_steps.append((depth, steps))
+
+    d, v = zip(*data_solved)
+    plot = sns.lineplot(d, v)
+    plot.set_title("Solve ratio per depth (%d sec limit)" % max_seconds)
+    plot.get_figure().savefig(prefix + "-solve_vs_depth.png")
+
+    plt.clf()
+    d, v = zip(*data_steps)
+    plot = sns.lineplot(d, v)
+    plot.set_title("Steps to solve per depth (%d sec limit)" % max_seconds)
+    plot.get_figure().savefig(prefix + "-steps_vs_depth.png")
 
 
 if __name__ == "__main__":
@@ -62,12 +91,17 @@ if __name__ == "__main__":
     parser.add_argument("--max-time", type=int, default=DEFAULT_MAX_SECONDS,
                         help="Limit in seconds for each task, default=%s" % DEFAULT_MAX_SECONDS)
     parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
+    parser.add_argument("--seed", type=int, default=42, help="Seed to use, if zero, no seed used. default=42")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-i", "--input", help="Text file with permutations to read cubes to solve, "
                                              "possibly produced by gen_cubes.py")
     group.add_argument("-p", "--perm", help="Permutation in form of actions list separated by comma")
     group.add_argument("-r", "--random", metavar="DEPTH", type=int, help="Generate random scramble of given depth")
+    group.add_argument("--plot", metavar="PREFIX", help="Produce plots of model solve accuracy")
     args = parser.parse_args()
+
+    if args.seed:
+        random.seed(args.seed)
     device = torch.device("cuda" if args.cuda else "cpu")
 
     cube_env = cubes.get(args.env)
@@ -96,4 +130,7 @@ if __name__ == "__main__":
                     solved += 1
                 count += 1
         log.info("Solved %d out of %d cubes, which is %.2f%% success ratio", solved, count, 100*solved / count)
+    elif args.plot is not None:
+        log.info("Produce plots with prefix %s", args.plot)
+        produce_plots(cube_env, args.plot, net, max_seconds=args.max_time, device=device)
 
