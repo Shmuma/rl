@@ -24,7 +24,7 @@ CHECKPOINT_ITERS = 100
 LEARNING_RATE = 1e-5
 
 LR_DECAY = True
-LR_DECAY_ITERS = 5000
+LR_DECAY_ITERS = 1000
 
 
 if __name__ == "__main__":
