@@ -126,7 +126,7 @@ if __name__ == "__main__":
         with open(args.input, 'rt', encoding='utf-8') as fd:
             for idx, l in enumerate(fd):
                 task = list(map(int, l.strip().split(',')))
-                if solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time, device=device):
+                if solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time, device=device) >= 0:
                     solved += 1
                 count += 1
         log.info("Solved %d out of %d cubes, which is %.2f%% success ratio", solved, count, 100*solved / count)
