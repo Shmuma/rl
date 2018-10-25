@@ -7,6 +7,7 @@ import argparse
 import random
 import logging
 
+from tqdm import tqdm
 import seaborn as sns
 import matplotlib.pylab as plt
 import torch
@@ -20,7 +21,7 @@ log = logging.getLogger("solver")
 
 DEFAULT_MAX_SECONDS = 60
 PLOT_MAX_DEPTHS = 20
-PLOT_TASKS = 100
+PLOT_TASKS = 20
 
 
 def generate_task(env, depth):
@@ -33,26 +34,28 @@ def generate_task(env, depth):
     return res
 
 
-def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, device="cpu"):
-    log_prefix = "" if cube_idx is None else "cube %d: " % cube_idx
-    log.info("%sGot task %s, solving...", log_prefix, task)
+def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, device="cpu", quiet=False):
+    if not quiet:
+        log_prefix = "" if cube_idx is None else "cube %d: " % cube_idx
+        log.info("%sGot task %s, solving...", log_prefix, task)
     cube_state = env.scramble(map(env.action_enum, task))
     tree = mcts.MCTS(env, cube_state, device=device)
     step_no = 0
     ts = time.time()
-    tb = 0
 
     while True:
         r = tree.search(net)
         if r:
-            log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
-                     step_no, step_no / (time.time() - ts))
+            if not quiet:
+                log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
+                         step_no, step_no / (time.time() - ts))
 #            tree.dump_root()
             return step_no
         step_no += 1
         if time.time() - ts > max_seconds:
-            log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
-                     step_no, step_no / (time.time() - ts))
+            if not quiet:
+                log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
+                         step_no, step_no / (time.time() - ts))
 #            tree.dump_root()
             return -1
 
@@ -63,13 +66,16 @@ def produce_plots(cube_env, prefix, net, max_seconds=DEFAULT_MAX_SECONDS, device
     data_steps = []
 
     for depth in range(1, PLOT_MAX_DEPTHS+1):
-        log.info("Process depth %d", depth)
-        for task_idx in range(PLOT_TASKS):
+        count = 0
+        for task_idx in tqdm(range(PLOT_TASKS)):
             task = generate_task(cube_env, depth)
-            steps = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds, device=device)
+            steps = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds, device=device, quiet=True)
+            if steps >= 0:
+                count += 1
             data_solved.append((depth, 0 if steps < 0 else 1))
             if steps >= 0:
                 data_steps.append((depth, steps))
+        log.info("Depth %d processed, solved %d/%d (%.2f%%)", depth, count, PLOT_TASKS, 100.0*count/PLOT_TASKS)
 
     d, v = zip(*data_solved)
     plot = sns.lineplot(d, v)
