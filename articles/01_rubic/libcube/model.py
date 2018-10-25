@@ -64,20 +64,20 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
     data = []
     rounds = batch_size // scramble_depth
     for _ in range(rounds):
-        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=True))
+        data.extend(cube_env.scramble_cube(scramble_depth, include_initial=False))
     if shuffle:
         random.shuffle(data)
     cube_depths, cube_states = zip(*data)
 
     # explore each state by doing 1-step BFS search and keep a mask of goal states (for reward calculation)
     explored_states, explored_goals = [], []
-#    goal_indices = []
+    goal_indices = []
     for idx, s in enumerate(cube_states):
         states, goals = cube_env.explore_state(s)
         explored_states.append(states)
         explored_goals.append(goals)
-#        if cube_env.is_goal(s):
-#            goal_indices.append(idx)
+        goal = np.argmax(goals) if any(goals) else None
+        goal_indices.append(goal)
 
     # obtain network's values for all explored states
     enc_explored = encode_states(cube_env, explored_states)           # shape: (states, actions, encoded_shape)
@@ -86,15 +86,19 @@ def make_train_data(cube_env, net, device, batch_size, scramble_depth, shuffle=T
     enc_explored_t = enc_explored_t.view(shape[0]*shape[1], *shape[2:])     # shape: (states*actions, encoded_shape)
     value_t = net(enc_explored_t, value_only=True)
     value_t = value_t.squeeze(-1).view(shape[0], shape[1])                  # shape: (states, actions)
+    value_t = torch.clamp(value_t, -np.inf, 1.0)
+    max_val_t, max_act_t = value_t.max(dim=1)
+
+    for idx, goal_idx in enumerate(goal_indices):
+        if goal_idx is not None:
+            max_val_t[idx] = 1.0
+            max_act_t[idx] = int(goal_idx)
+
     # add reward to the values
-    goals_mask_t = torch.tensor(explored_goals, dtype=torch.int8).to(device)
-    goals_mask_t += goals_mask_t - 1                                        # has 1 at final states and -1 elsewhere
-    value_t += goals_mask_t.type(dtype=torch.float32)
+#    goals_mask_t = torch.tensor(explored_goals, dtype=torch.float32).to(device)
+#    value_t = torch.max(value_t, goals_mask_t)
 
     # find target value and target policy
-    max_val_t, max_act_t = value_t.max(dim=1)
-#    max_val_t[goal_indices] = 1.0
-#    max_act_t[goal_indices] = 0
 
     # create train input
     enc_input = encode_states(cube_env, cube_states)
