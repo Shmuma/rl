@@ -69,6 +69,10 @@ class Config:
     def train_lr_decay_gamma(self):
         return self.sect_train.getfloat('lr_decay_gamma', fallback=1.0)
 
+    @property
+    def train_value_targets_method(self):
+        return self.sect_train.get('value_targets_method', fallback='paper')
+
     # higher-level functions
     def train_name(self, suffix=None):
         res = "%s-d%d" % (self.run_name, self.train_scramble_depth)

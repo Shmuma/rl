@@ -35,8 +35,8 @@ if __name__ == "__main__":
 
     cube_env = cubes.get(config.cube_type)
     assert isinstance(cube_env, cubes.CubeEnv)
-
     log.info("Selected cube: %s", cube_env)
+    value_targets_method = model.ValueTargetsMethod(config.train_value_targets_method)
 
     net = model.Net(cube_env.encoded_shape, len(cube_env.action_enum)).to(device)
     print(net)
@@ -58,7 +58,9 @@ if __name__ == "__main__":
 
         step_idx += 1
         x_t, weights_t, y_policy_t, y_value_t = model.make_train_data(
-            cube_env, net, device, batch_size=config.train_batch_size, scramble_depth=config.train_scramble_depth)
+            cube_env, net, device, batch_size=config.train_batch_size, scramble_depth=config.train_scramble_depth,
+            value_targets=value_targets_method
+        )
         opt.zero_grad()
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
