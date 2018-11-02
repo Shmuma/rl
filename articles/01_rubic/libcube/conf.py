@@ -73,6 +73,10 @@ class Config:
     def train_value_targets_method(self):
         return self.sect_train.get('value_targets_method', fallback='paper')
 
+    @property
+    def train_max_batches(self):
+        return self.sect_train.getint('max_batches')
+
     # higher-level functions
     def train_name(self, suffix=None):
         res = "%s-d%d" % (self.run_name, self.train_scramble_depth)

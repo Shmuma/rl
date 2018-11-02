@@ -129,3 +129,6 @@ if __name__ == "__main__":
             name = os.path.join(save_path, "chpt_%06d.dat" % step_idx)
             torch.save(net.state_dict(), name)
 
+        if config.train_max_batches is not None and config.train_max_batches <= step_idx:
+            log.info("Limit of train batches reached, exiting")
+            break
