@@ -79,7 +79,7 @@ class Config:
 
     # higher-level functions
     def train_name(self, suffix=None):
-        res = "%s-d%d" % (self.run_name, self.train_scramble_depth)
+        res = "%s-%s-d%d" % (self.cube_type, self.run_name, self.train_scramble_depth)
         if suffix is not None:
             res += "-" + suffix
         return res
