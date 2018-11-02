@@ -14,44 +14,34 @@ from tensorboardX import SummaryWriter
 
 from libcube import cubes
 from libcube import model
+from libcube import conf
 
 log = logging.getLogger("train")
-
-CUBES_PER_BATCH = 10000
-DEFAULT_SCRAMBLE_DEPTH = 200
-REPORT_ITERS = 10
-CHECKPOINT_ITERS = 100
-LEARNING_RATE = 1e-5
-
-LR_DECAY = True
-LR_DECAY_ITERS = 1000
 
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO)
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--env", required=True, help="Type of env to train, supported types=%s" % cubes.names())
+    parser.add_argument("-i", "--ini", required=True, help="Ini file to use for this run")
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
-    parser.add_argument("--cuda", action="store_true", help="Enable cuda")
-    parser.add_argument("--depth", type=int, default=DEFAULT_SCRAMBLE_DEPTH,
-                        help="Depth of cube scramble, default=%s" % DEFAULT_SCRAMBLE_DEPTH)
     args = parser.parse_args()
-    device = torch.device("cuda" if args.cuda else "cpu")
+    config = conf.Config(args.ini)
+    device = torch.device("cuda" if config.train_cuda else "cpu")
 
-    name = "%s-d%d-%s" % (args.env, args.depth, args.name)
+    name = config.train_name(suffix=args.name)
     writer = SummaryWriter(comment="-" + name)
     save_path = os.path.join("saves", name)
     os.makedirs(save_path)
 
-    cube_env = cubes.get(args.env)
+    cube_env = cubes.get(config.cube_type)
     assert isinstance(cube_env, cubes.CubeEnv)
 
     log.info("Selected cube: %s", cube_env)
 
     net = model.Net(cube_env.encoded_shape, len(cube_env.action_enum)).to(device)
     print(net)
-    opt = optim.Adam(net.parameters(), lr=LEARNING_RATE)
-    sched = scheduler.StepLR(opt, 1, gamma=0.95) if LR_DECAY else None
+    opt = optim.Adam(net.parameters(), lr=config.train_learning_rate)
+    sched = scheduler.StepLR(opt, 1, gamma=config.train_lr_decay_gamma) if config.train_lr_decay_enabled else None
 
     step_idx = 0
     buf_policy_loss, buf_value_loss, buf_loss = [], [], []
@@ -61,14 +51,14 @@ if __name__ == "__main__":
     best_loss = None
 
     while True:
-        if LR_DECAY and step_idx % LR_DECAY_ITERS == 0:
+        if config.train_lr_decay_enabled and step_idx % config.train_lr_decay_batches == 0:
             sched.step()
             log.info("LR decrease to %s", sched.get_lr()[0])
             writer.add_scalar("lr", sched.get_lr()[0], step_idx)
 
         step_idx += 1
         x_t, weights_t, y_policy_t, y_value_t = model.make_train_data(
-            cube_env, net, device, batch_size=CUBES_PER_BATCH, scramble_depth=args.depth)
+            cube_env, net, device, batch_size=config.train_batch_size, scramble_depth=config.train_scramble_depth)
         opt.zero_grad()
         policy_out_t, value_out_t = net(x_t)
         value_out_t = value_out_t.squeeze(-1)
@@ -94,7 +84,7 @@ if __name__ == "__main__":
         buf_value_loss_raw.append(value_loss_raw_t.item())
         buf_policy_loss_raw.append(policy_loss_raw_t.item())
 
-        if step_idx % REPORT_ITERS == 0:
+        if config.train_report_batches is not None and step_idx % config.train_report_batches == 0:
             m_policy_loss = np.mean(buf_policy_loss)
             m_value_loss = np.mean(buf_value_loss)
             m_loss = np.mean(buf_loss)
@@ -114,7 +104,7 @@ if __name__ == "__main__":
 
             dt = time.time() - ts
             ts = time.time()
-            speed = CUBES_PER_BATCH * REPORT_ITERS / dt
+            speed = config.train_batch_size * config.train_report_batches / dt
             log.info("%d: p_loss=%.3e, v_loss=%.3e, loss=%.3e, speed=%.1f cubes/s",
                      step_idx, m_policy_loss, m_value_loss, m_loss, speed)
             writer.add_scalar("loss_policy", m_policy_loss, step_idx)
@@ -133,7 +123,7 @@ if __name__ == "__main__":
                 torch.save(net.state_dict(), name)
                 best_loss = m_loss
 
-        if step_idx % CHECKPOINT_ITERS == 0:
+        if config.train_checkpoint_batches is not None and step_idx % config.train_checkpoint_batches == 0:
             name = os.path.join(save_path, "chpt_%06d.dat" % step_idx)
             torch.save(net.state_dict(), name)
 
