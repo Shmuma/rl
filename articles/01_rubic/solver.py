@@ -54,23 +54,26 @@ def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_de
     :return: list DataPoint entries
     """
     result = []
-    for depth in range(1, max_depth+1):
-        solved_count = 0
-        for task_idx in tqdm(range(samples_per_depth)):
-            start_dt = datetime.datetime.utcnow()
-            task = generate_task(cube_env, depth)
-            steps, is_solved = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
-                                          max_steps=max_steps, device=device, quiet=True)
-            stop_dt = datetime.datetime.utcnow()
-            duration = (stop_dt - start_dt).total_seconds()
-            scramble = " ".join(map(str, task))
-            data_point = DataPoint(start_dt=start_dt, stop_dt=stop_dt, duration=duration, depth=depth,
-                                   scramble=scramble, is_solved=is_solved, solve_steps=steps, solution='')
-            result.append(data_point)
-            if is_solved:
-                solved_count += 1
-        log.info("Depth %d processed, solved %d/%d (%.2f%%)", depth, solved_count, samples_per_depth,
-                 100.0*solved_count/samples_per_depth)
+    try:
+        for depth in range(1, max_depth+1):
+            solved_count = 0
+            for task_idx in tqdm(range(samples_per_depth)):
+                start_dt = datetime.datetime.utcnow()
+                task = generate_task(cube_env, depth)
+                steps, is_solved = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
+                                              max_steps=max_steps, device=device, quiet=True)
+                stop_dt = datetime.datetime.utcnow()
+                duration = (stop_dt - start_dt).total_seconds()
+                scramble = " ".join(map(str, task))
+                data_point = DataPoint(start_dt=start_dt, stop_dt=stop_dt, duration=duration, depth=depth,
+                                       scramble=scramble, is_solved=is_solved, solve_steps=steps, solution='')
+                result.append(data_point)
+                if is_solved:
+                    solved_count += 1
+            log.info("Depth %d processed, solved %d/%d (%.2f%%)", depth, solved_count, samples_per_depth,
+                     100.0*solved_count/samples_per_depth)
+    except KeyboardInterrupt:
+        log.info("Interrupt received, got %d data samples, use them", len(result))
     return result
 
 
