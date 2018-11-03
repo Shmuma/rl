@@ -6,6 +6,9 @@ import time
 import argparse
 import random
 import logging
+import datetime
+import collections
+import csv
 
 from tqdm import tqdm
 import seaborn as sns
@@ -17,6 +20,10 @@ from libcube import model
 from libcube import mcts
 
 log = logging.getLogger("solver")
+
+
+DataPoint = collections.namedtuple("DataPoint", field_names=(
+    'start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'solution'))
 
 
 DEFAULT_MAX_SECONDS = 60
@@ -34,7 +41,56 @@ def generate_task(env, depth):
     return res
 
 
-def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, device="cpu", quiet=False):
+def gather_data(cube_env, net, max_seconds, max_depth, samples_per_depth, device):
+    """
+    Try to solve lots of cubes to get data
+    :param cube_env: CubeEnv
+    :param net: model to be used
+    :param max_seconds: time limit per cube in seconds
+    :param max_depth: maximum depth of scramble
+    :param samples_per_depth: how many cubes of every depth to generate
+    :param device: torch.device
+    :return: list DataPoint entries
+    """
+    result = []
+    for depth in range(1, max_depth+1):
+        solved_count = 0
+        for task_idx in tqdm(range(samples_per_depth)):
+            start_dt = datetime.datetime.utcnow()
+            task = generate_task(cube_env, depth)
+            steps, is_solved = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
+                                          device=device, quiet=True)
+            stop_dt = datetime.datetime.utcnow()
+            duration = (stop_dt - start_dt).total_seconds()
+            scramble = " ".join(map(str, task))
+            data_point = DataPoint(start_dt=start_dt, stop_dt=stop_dt, duration=duration, depth=depth,
+                                   scramble=scramble, is_solved=is_solved, solve_steps=steps, solution='')
+            result.append(data_point)
+            if is_solved:
+                solved_count += 1
+        log.info("Depth %d processed, solved %d/%d (%.2f%%)", depth, solved_count, samples_per_depth,
+                 100.0*solved_count/samples_per_depth)
+    return result
+
+
+def save_output(data, output_file):
+    with open(output_file, "wt", encoding='utf-8') as fd:
+        writer = csv.writer(fd)
+        writer.writerow(['start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'solution'])
+        for dp in data:
+            writer.writerow([
+                dp.start_dt.isoformat(),
+                dp.stop_dt.isoformat(),
+                dp.duration,
+                dp.depth,
+                dp.scramble,
+                int(dp.is_solved),
+                dp.solve_steps,
+                dp.solution
+            ])
+
+
+def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, device=torch.device("cpu"), quiet=False):
     if not quiet:
         log_prefix = "" if cube_idx is None else "cube %d: " % cube_idx
         log.info("%sGot task %s, solving...", log_prefix, task)
@@ -50,33 +106,21 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, d
                 log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                          step_no, step_no / (time.time() - ts))
 #            tree.dump_root()
-            return step_no
+            return step_no, True
         step_no += 1
         if time.time() - ts > max_seconds:
             if not quiet:
                 log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                          step_no, step_no / (time.time() - ts))
 #            tree.dump_root()
-            return -1
+            return step_no, False
 
 
-def produce_plots(cube_env, prefix, net, max_seconds=DEFAULT_MAX_SECONDS, device="cpu"):
+def produce_plots(data, prefix, max_seconds):
+    data_solved = [(dp.depth, int(dp.is_solved)) for dp in data]
+    data_steps = [(dp.depth, dp.solve_steps) for dp in data if dp.is_solved]
+
     sns.set()
-    data_solved = []
-    data_steps = []
-
-    for depth in range(1, PLOT_MAX_DEPTHS+1):
-        count = 0
-        for task_idx in tqdm(range(PLOT_TASKS)):
-            task = generate_task(cube_env, depth)
-            steps = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds, device=device, quiet=True)
-            if steps >= 0:
-                count += 1
-            data_solved.append((depth, 0 if steps < 0 else 1))
-            if steps >= 0:
-                data_steps.append((depth, steps))
-        log.info("Depth %d processed, solved %d/%d (%.2f%%)", depth, count, PLOT_TASKS, 100.0*count/PLOT_TASKS)
-
     d, v = zip(*data_solved)
     plot = sns.lineplot(d, v)
     plot.set_title("Solve ratio per depth (%d sec limit)" % max_seconds)
@@ -96,6 +140,10 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", required=True, help="Model file to load, has to match env type")
     parser.add_argument("--max-time", type=int, default=DEFAULT_MAX_SECONDS,
                         help="Limit in seconds for each task, default=%s" % DEFAULT_MAX_SECONDS)
+    parser.add_argument("--max-depth", type=int, default=PLOT_MAX_DEPTHS,
+                        help="Maximum depth for plots and data, default=%s" % PLOT_MAX_DEPTHS)
+    parser.add_argument("--samples", type=int, default=PLOT_TASKS,
+                        help="Count of tests of each depth, default=%s" % PLOT_TASKS)
     parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
     parser.add_argument("--seed", type=int, default=42, help="Seed to use, if zero, no seed used. default=42")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -104,6 +152,7 @@ if __name__ == "__main__":
     group.add_argument("-p", "--perm", help="Permutation in form of actions list separated by comma")
     group.add_argument("-r", "--random", metavar="DEPTH", type=int, help="Generate random scramble of given depth")
     group.add_argument("--plot", metavar="PREFIX", help="Produce plots of model solve accuracy")
+    group.add_argument("-o", "--output", help="Write test result into csv file with given name")
     args = parser.parse_args()
 
     if args.seed:
@@ -132,11 +181,16 @@ if __name__ == "__main__":
         with open(args.input, 'rt', encoding='utf-8') as fd:
             for idx, l in enumerate(fd):
                 task = list(map(int, l.strip().split(',')))
-                if solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time, device=device):
+                _, is_solved = solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time, device=device)
+                if is_solved:
                     solved += 1
                 count += 1
         log.info("Solved %d out of %d cubes, which is %.2f%% success ratio", solved, count, 100*solved / count)
     elif args.plot is not None:
         log.info("Produce plots with prefix %s", args.plot)
-        produce_plots(cube_env, args.plot, net, max_seconds=args.max_time, device=device)
-
+        data = gather_data(cube_env, net, args.max_time, args.max_depth, args.samples, device)
+        produce_plots(data, args.plot, args.max_time)
+    elif args.output is not None:
+        data = gather_data(cube_env, net, args.max_time, args.max_depth, args.samples, device)
+        save_output(data, args.output)
+        pass
