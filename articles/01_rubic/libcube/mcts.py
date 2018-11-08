@@ -149,19 +149,13 @@ class MCTS:
         while q:
             s, depth = q.popleft()
             met.add(s)
-            edges = self.edges.get(s)
-            if edges is None:
-                max_depth = max(max_depth, depth)
-                sum_depth += depth
-                leaves_count += 1
-            else:
-                for s in edges:
-                    if s not in self.edges:
-                        max_depth = max(max_depth, depth+1)
-                        sum_depth += depth+1
-                        leaves_count += 1
-                    elif s not in met:
-                        q.append((s, depth+1))
+            for ss in self.edges[s]:
+                if ss not in self.edges:
+                    max_depth = max(max_depth, depth+1)
+                    sum_depth += depth+1
+                    leaves_count += 1
+                elif ss not in met:
+                    q.append((ss, depth+1))
         return {
             'max': max_depth,
             'mean': sum_depth / leaves_count,
