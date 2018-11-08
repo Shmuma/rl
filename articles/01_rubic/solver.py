@@ -23,7 +23,9 @@ log = logging.getLogger("solver")
 
 
 DataPoint = collections.namedtuple("DataPoint", field_names=(
-    'start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'solution'))
+    'start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'solution',
+    'depth_max', 'depth_mean'
+))
 
 
 DEFAULT_MAX_SECONDS = 60
@@ -60,13 +62,15 @@ def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_de
             for task_idx in tqdm(range(samples_per_depth)):
                 start_dt = datetime.datetime.utcnow()
                 task = generate_task(cube_env, depth)
-                steps, is_solved = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
-                                              max_steps=max_steps, device=device, quiet=True)
+                tree, is_solved = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
+                                             max_steps=max_steps, device=device, quiet=True)
                 stop_dt = datetime.datetime.utcnow()
                 duration = (stop_dt - start_dt).total_seconds()
                 scramble = " ".join(map(str, task))
+                tree_depth_stats = tree.get_depth_stats()
                 data_point = DataPoint(start_dt=start_dt, stop_dt=stop_dt, duration=duration, depth=depth,
-                                       scramble=scramble, is_solved=is_solved, solve_steps=steps, solution='')
+                                       scramble=scramble, is_solved=is_solved, solve_steps=len(tree), solution='',
+                                       depth_max=tree_depth_stats['max'], depth_mean=tree_depth_stats['mean'])
                 result.append(data_point)
                 if is_solved:
                     solved_count += 1
@@ -110,9 +114,10 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
             if not quiet:
                 log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                          step_no, step_no / (time.time() - ts))
-                tree.dump_root()
-                log.info("Tree: %s", tree)
-            return step_no, True
+                log.info("Tree depths: %s", tree.get_depth_stats())
+#                tree.dump_root()
+#                log.info("Tree: %s", tree)
+            return tree, True
         step_no += 1
         if max_steps is not None:
             if step_no > max_steps:
@@ -120,16 +125,18 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
                     log.info("Maximum amount of steps has reached, cube wasn't solved. "
                              "Did %d searches, speed %.2f searches/s",
                              step_no, step_no / (time.time() - ts))
-                    tree.dump_root()
-                    log.info("Tree: %s", tree)
-                return step_no, False
+                    log.info("Tree depths: %s", tree.get_depth_stats())
+#                    tree.dump_root()
+#                    log.info("Tree: %s", tree)
+                return tree, False
         elif time.time() - ts > max_seconds:
             if not quiet:
                 log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                          step_no, step_no / (time.time() - ts))
-                tree.dump_root()
-                log.info("Tree: %s", tree)
-            return step_no, False
+                log.info("Tree depths: %s", tree.get_depth_stats())
+#                tree.dump_root()
+#                log.info("Tree: %s", tree)
+            return tree, False
 
 
 def produce_plots(data, prefix, max_seconds, max_steps):

@@ -23,8 +23,23 @@ This leads to longer search paths which take more and more time to back up.
 It is likely that my C value is too large and I just need to speed up MCTS.
 
 TODO: 
-* measure branching factor of resulting tree
+* measure depths of resulting tree
 * analyze the length of solution (both naive and BFS)
 * check effect of C on those parameters
 
+Depths with 1000 steps limit:
+* c=1m:   {'min': 1, 'max': 16, 'mean': 7.849963731321631, 'leaves': 34465}
+* c=100k: {'min': 1, 'max': 17, 'mean': 9.103493774652236, 'leaves': 71241}
+* c=10k:  {'min': 1, 'max': 18, 'mean': 10.28626504647809, 'leaves': 70033}
+* c=1k:   {'min': 1, 'max': 18, 'mean': 9.942448384493218, 'leaves': 76818}
+* c=100:  {'min': 1, 'max': 14, 'mean': 8.938883245826121, 'leaves': 69899}
+* c=10:   {'min': 1, 'max': 13, 'mean': 8.59500956472128,  'leaves': 59594}
 
+Depths with 10000 steps limit:
+* c=10k:  {'min': 1, 'max': 27, 'mean': 15.374430775030191, 'leaves': 1289253}
+* c=1k:   {'min': 1, 'max': 26, 'mean': 14.057022074409328, 'leaves': 1004874}
+* c=100:  {'min': 1, 'max': 19, 'mean': 12.376234716455224, 'leaves': 1113616}
+* c=10:   {'min': 1, 'max': 19, 'mean': 11.707333613164712, 'leaves': 886248}
+
+c=100 with different limits:
+* 100k: 

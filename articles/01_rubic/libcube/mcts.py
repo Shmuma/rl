@@ -13,7 +13,7 @@ class MCTS:
     """
     Monte Carlo Tree Search state and method
     """
-    def __init__(self, cube_env, state, exploration_c=10000, virt_loss_nu=10.0, device="cpu", random_action_depth=0):
+    def __init__(self, cube_env, state, exploration_c=100, virt_loss_nu=10.0, device="cpu"):
         assert isinstance(cube_env, cubes.CubeEnv)
         assert cube_env.is_state(state)
 
@@ -21,7 +21,6 @@ class MCTS:
         self.root_state = state
         self.exploration_c = exploration_c
         self.virt_loss_nu = virt_loss_nu
-        self.random_action_depth = random_action_depth
         self.device = device
 
         # Tree state
@@ -36,6 +35,9 @@ class MCTS:
         self.virt_loss = collections.defaultdict(lambda: np.zeros(shape, dtype=np.float32))
         # TODO: check speed and memory of edge-less version
         self.edges = {}
+
+    def __len__(self):
+        return len(self.edges)
 
     def __repr__(self):
         return "MCTS(states=%d)" % len(self.edges)
@@ -82,7 +84,7 @@ class MCTS:
 
             act_counts = self.act_counts[s]
             N_sqrt = np.sqrt(np.sum(act_counts))
-            if d < self.random_action_depth or N_sqrt < 1e-6:
+            if N_sqrt < 1e-6:
                 act = random.randrange(len(self.cube_env.action_enum))
             else:
                 u = self.exploration_c * N_sqrt / (act_counts + 1)
@@ -133,3 +135,35 @@ class MCTS:
         policy_t = F.softmax(policy_t, dim=1)
         return policy_t.detach().cpu().numpy(), value_t.squeeze(-1).detach().cpu().numpy()
 
+    def get_depth_stats(self):
+        """
+        Calculate minimum, maximum, and mean depth of children in the tree
+        :return: dict with stats
+        """
+        max_depth = 0
+        sum_depth = 0
+        leaves_count = 0
+        q = collections.deque([(self.root_state, 0)])
+        met = set()
+
+        while q:
+            s, depth = q.popleft()
+            met.add(s)
+            edges = self.edges.get(s)
+            if edges is None:
+                max_depth = max(max_depth, depth)
+                sum_depth += depth
+                leaves_count += 1
+            else:
+                for s in edges:
+                    if s not in self.edges:
+                        max_depth = max(max_depth, depth+1)
+                        sum_depth += depth+1
+                        leaves_count += 1
+                    elif s not in met:
+                        q.append((s, depth+1))
+        return {
+            'max': max_depth,
+            'mean': sum_depth / leaves_count,
+            'leaves': leaves_count
+        }
