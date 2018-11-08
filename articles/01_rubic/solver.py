@@ -110,7 +110,8 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
             if not quiet:
                 log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                          step_no, step_no / (time.time() - ts))
-#            tree.dump_root()
+                tree.dump_root()
+                log.info("Tree: %s", tree)
             return step_no, True
         step_no += 1
         if max_steps is not None:
@@ -119,12 +120,15 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
                     log.info("Maximum amount of steps has reached, cube wasn't solved. "
                              "Did %d searches, speed %.2f searches/s",
                              step_no, step_no / (time.time() - ts))
+                    tree.dump_root()
+                    log.info("Tree: %s", tree)
                 return step_no, False
         elif time.time() - ts > max_seconds:
             if not quiet:
                 log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
                          step_no, step_no / (time.time() - ts))
-#            tree.dump_root()
+                tree.dump_root()
+                log.info("Tree: %s", tree)
             return step_no, False
 
 
