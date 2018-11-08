@@ -23,7 +23,7 @@ log = logging.getLogger("solver")
 
 
 DataPoint = collections.namedtuple("DataPoint", field_names=(
-    'start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'solution',
+    'start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'sol_len_naive', 'sol_len_bfs',
     'depth_max', 'depth_mean'
 ))
 
@@ -62,14 +62,20 @@ def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_de
             for task_idx in tqdm(range(samples_per_depth)):
                 start_dt = datetime.datetime.utcnow()
                 task = generate_task(cube_env, depth)
-                tree, is_solved = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
-                                             max_steps=max_steps, device=device, quiet=True)
+                tree, solution = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
+                                            max_steps=max_steps, device=device, quiet=True)
+                is_solved = solution is not None
                 stop_dt = datetime.datetime.utcnow()
                 duration = (stop_dt - start_dt).total_seconds()
                 scramble = " ".join(map(str, task))
                 tree_depth_stats = tree.get_depth_stats()
+                sol_len_naive, sol_len_bfs = -1, -1
+                if is_solved:
+                    sol_len_naive = len(solution)
+                    sol_len_bfs = len(tree.find_solution())
                 data_point = DataPoint(start_dt=start_dt, stop_dt=stop_dt, duration=duration, depth=depth,
-                                       scramble=scramble, is_solved=is_solved, solve_steps=len(tree), solution='',
+                                       scramble=scramble, is_solved=is_solved, solve_steps=len(tree),
+                                       sol_len_naive=sol_len_naive, sol_len_bfs=sol_len_bfs,
                                        depth_max=tree_depth_stats['max'], depth_mean=tree_depth_stats['mean'])
                 result.append(data_point)
                 if is_solved:
@@ -109,15 +115,19 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
     ts = time.time()
 
     while True:
-        r = tree.search(net)
-        if r:
+        solution = tree.search(net)
+        if solution:
             if not quiet:
                 log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
                          step_no, step_no / (time.time() - ts))
                 log.info("Tree depths: %s", tree.get_depth_stats())
+                bfs_solution = tree.find_solution()
+                log.info("Solutions: naive %d, bfs %d", len(solution), len(bfs_solution))
+#                tree.dump_solution(bfs_solution)
+#                tree.dump_solution(solution)
 #                tree.dump_root()
 #                log.info("Tree: %s", tree)
-            return tree, True
+            return tree, solution
         step_no += 1
         if max_steps is not None:
             if step_no > max_steps:
@@ -128,7 +138,7 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
                     log.info("Tree depths: %s", tree.get_depth_stats())
 #                    tree.dump_root()
 #                    log.info("Tree: %s", tree)
-                return tree, False
+                return tree, None
         elif time.time() - ts > max_seconds:
             if not quiet:
                 log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
@@ -136,7 +146,7 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
                 log.info("Tree depths: %s", tree.get_depth_stats())
 #                tree.dump_root()
 #                log.info("Tree: %s", tree)
-            return tree, False
+            return tree, None
 
 
 def produce_plots(data, prefix, max_seconds, max_steps):
@@ -211,9 +221,9 @@ if __name__ == "__main__":
         with open(args.input, 'rt', encoding='utf-8') as fd:
             for idx, l in enumerate(fd):
                 task = list(map(int, l.strip().split(',')))
-                _, is_solved = solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time,
+                _, solution  = solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time,
                                           max_steps=args.max_steps, device=device)
-                if is_solved:
+                if solution is not None:
                     solved += 1
                 count += 1
         log.info("Solved %d out of %d cubes, which is %.2f%% success ratio", solved, count, 100*solved / count)

@@ -120,7 +120,10 @@ class MCTS:
             w[path_a] = max(w[path_a], value)
             self.virt_loss[path_s][path_a] -= self.virt_loss_nu
 
-        return np.any(child_goal)
+        if np.any(child_goal):
+            path_actions.append(np.argmax(child_goal))
+            return path_actions
+        return None
 
     def evaluate_states(self, net, states, device):
         """
@@ -161,3 +164,34 @@ class MCTS:
             'mean': sum_depth / leaves_count,
             'leaves': leaves_count
         }
+
+    def dump_solution(self, solution):
+        assert isinstance(solution, list)
+
+        s = self.root_state
+        r = self.cube_env.render(s)
+        print(r)
+        for aidx in solution:
+            a = self.cube_env.action_enum(aidx)
+            print(a, aidx)
+            s = self.cube_env.transform(s, a)
+            r = self.cube_env.render(s)
+            print(r)
+
+    def find_solution(self):
+        queue = collections.deque([(self.root_state, [])])
+        seen = set()
+
+        while queue:
+            s, path = queue.popleft()
+            seen.add(s)
+            c_states, c_goals = self.cube_env.explore_state(s)
+            for a_idx, (c_state, c_goal) in enumerate(zip(c_states, c_goals)):
+                p = path + [a_idx]
+                if c_goal:
+                    return p
+                if c_state in seen or c_state not in self.edges:
+                    continue
+                queue.append((c_state, p))
+
+

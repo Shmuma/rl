@@ -41,5 +41,16 @@ Depths with 10000 steps limit:
 * c=100:  {'min': 1, 'max': 19, 'mean': 12.376234716455224, 'leaves': 1113616}
 * c=10:   {'min': 1, 'max': 19, 'mean': 11.707333613164712, 'leaves': 886248}
 
-c=100 with different limits:
-* 100k: 
+
+# Weird case in search
+Looks like virtual loss needs tuning as well
+
+````
+(art_01_cube) shmuma@gpu:~/work/rl/articles/01_rubic$ ./solver.py -e cube2x2 -m saves/cube2x2-zero-goal-d200-t1/best_1.4547e-02.dat --max-steps 10000 --cuda -r 10 --seed 41
+2018-11-08 14:43:34,360 INFO Using environment CubeEnv('cube2x2')
+2018-11-08 14:43:36,328 INFO Network loaded from saves/cube2x2-zero-goal-d200-t1/best_1.4547e-02.dat
+2018-11-08 14:43:36,329 INFO Got task [6, 5, 3, 2, 6, 9, 11, 4, 8, 4], solving...
+2018-11-08 14:43:59,362 INFO On step 8544 we found goal state, unroll. Speed 370.94 searches/s
+2018-11-08 14:43:59,627 INFO Tree depths: {'max': 22, 'mean': 11.557521172600728, 'leaves': 604673}
+2018-11-08 14:43:59,627 INFO Solutions: naive [10, 0, 6, 3, 9, 6, 0, 2, 8, 4, 0, 10, 8, 2, 4, 6, 1, 0, 5, 6, 0, 9, 3, 11, 6, 7, 3, 9, 2, 8, 6, 0, 9, 3, 8, 2, 4, 10, 11, 5, 7, 1, 5, 11, 10, 1, 7, 11, 5, 9, 3, 8, 2, 5, 11, 10, 4, 7, 1, 0, 2, 6, 0, 8, 8, 2, 0, 0, 3, 9, 6, 6, 11, 5, 4, 6, 10, 0, 6, 8, 2, 4, 4, 1, 10, 10, 4, 4, 4, 4, 10, 10, 1, 7, 0, 6, 7, 10, 3, 9, 0, 10, 1, 6, 4, 7, 10, 4, 6, 0, 2, 8, 8, 2, 7, 1, 4, 10, 1, 10, 3, 7, 7, 1, 9, 3, 1, 4, 7, 7, 10, 3, 0, 6, 9, 4, 1, 7, 3, 9, 8, 2, 0, 6, 4, 10, 7, 1, 11, 5, 9, 3, 2, 8, 5, 11, 6, 0, 10, 6, 3] (161)
+````
