@@ -13,12 +13,13 @@ class MCTS:
     """
     Monte Carlo Tree Search state and method
     """
-    def __init__(self, cube_env, state, exploration_c=100, virt_loss_nu=10.0, device="cpu"):
+    def __init__(self, cube_env, state, net, exploration_c=100, virt_loss_nu=10.0, device="cpu"):
         assert isinstance(cube_env, cubes.CubeEnv)
         assert cube_env.is_state(state)
 
         self.cube_env = cube_env
         self.root_state = state
+        self.net = net
         self.exploration_c = exploration_c
         self.virt_loss_nu = virt_loss_nu
         self.device = device
@@ -70,13 +71,30 @@ class MCTS:
         act = np.argmax(fin, axis=0)
         print("Action: %s" % act)
 
-    def search(self, net):
+    def search(self):
+        s, path_actions, path_states = self._search_leaf()
+
+        child_states, child_goal = self.cube_env.explore_state(s)
+        self.edges[s] = child_states
+
+        value = self._expand_leaves([s])[0]
+        self._backup_leaf(path_states, path_actions, value)
+
+        if np.any(child_goal):
+            path_actions.append(np.argmax(child_goal))
+            return path_actions
+        return None
+
+    def _search_leaf(self):
+        """
+        Starting the root state, find path to the leaf node
+        :return: tuple: (state, path_actions, path_states)
+        """
         s = self.root_state
         path_actions = []
         path_states = []
 
         # walking down the tree
-        d = 0
         while True:
             next_states = self.edges.get(s)
             if next_states is None:
@@ -95,37 +113,38 @@ class MCTS:
             path_actions.append(act)
             path_states.append(s)
             s = next_states[act]
-            d += 1
+        return s, path_actions, path_states
 
-        # reached the leaf state, expand it
-        child_states, child_goal = self.cube_env.explore_state(s)
-        self.edges[s] = child_states
+    def _expand_leaves(self, leaf_states):
+        """
+        From list of states expand them using the network
+        :param leaf_states: list of states
+        :return: list of state values
+        """
+        policies, values = self.evaluate_states(leaf_states)
+        for s, p in zip(leaf_states, policies):
+            self.prob_actions[s] = p
+        return values
 
-        # calculate policy and values for our states
-        eval_policy, eval_values = self.evaluate_states(net, [s] + child_states, self.device)
-
-        # we can miss policy for start state, save it
-        if s not in self.prob_actions:
-            self.prob_actions[s] = eval_policy[0]
-        # save policy output for children
-        for child_s, policy in zip(child_states, eval_policy[1:]):
-            self.prob_actions[child_s] = policy
-        # value of expanded state to be backed up
-        value = eval_values[0]
-
-        # back up our path
-        for path_s, path_a in zip(path_states, path_actions):
+    def _backup_leaf(self, states, actions, value):
+        """
+        Update tree state after reaching and expanding the leaf node
+        :param states: path of states (without final leaf state)
+        :param actions: path of actions
+        :param value: value of leaf node
+        """
+        for path_s, path_a in zip(states, actions):
             self.act_counts[path_s][path_a] += 1
             w = self.val_maxes[path_s]
             w[path_a] = max(w[path_a], value)
             self.virt_loss[path_s][path_a] -= self.virt_loss_nu
 
-        if np.any(child_goal):
-            path_actions.append(np.argmax(child_goal))
-            return path_actions
-        return None
 
-    def evaluate_states(self, net, states, device):
+    def search_batch(self, net, batch_count=10):
+        pass
+
+
+    def evaluate_states(self, states):
         """
         Ask network to return policy and values
         :param net:
@@ -133,10 +152,16 @@ class MCTS:
         :return:
         """
         enc_states = model.encode_states(self.cube_env, states)
-        enc_states_t = torch.tensor(enc_states).to(device)
-        policy_t, value_t = net(enc_states_t)
+        enc_states_t = torch.tensor(enc_states).to(self.device)
+        policy_t, value_t = self.net(enc_states_t)
         policy_t = F.softmax(policy_t, dim=1)
         return policy_t.detach().cpu().numpy(), value_t.squeeze(-1).detach().cpu().numpy()
+
+    def eval_states_values(self, states):
+        enc_states = model.encode_states(self.cube_env, states)
+        enc_states_t = torch.tensor(enc_states).to(self.device)
+        value_t = self.net(enc_states_t, value_only=True)
+        return value_t.detach().cpu().numpy()
 
     def get_depth_stats(self):
         """

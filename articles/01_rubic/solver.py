@@ -112,12 +112,12 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
         log_prefix = "" if cube_idx is None else "cube %d: " % cube_idx
         log.info("%sGot task %s, solving...", log_prefix, task)
     cube_state = env.scramble(map(env.action_enum, task))
-    tree = mcts.MCTS(env, cube_state, device=device)
+    tree = mcts.MCTS(env, cube_state, net, device=device)
     step_no = 0
     ts = time.time()
 
     while True:
-        solution = tree.search(net)
+        solution = tree.search()
         if solution:
             if not quiet:
                 log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
@@ -125,8 +125,10 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
                 log.info("Tree depths: %s", tree.get_depth_stats())
                 bfs_solution = tree.find_solution()
                 log.info("Solutions: naive %d, bfs %d", len(solution), len(bfs_solution))
-#                tree.dump_solution(bfs_solution)
+                log.info("BFS: %s", bfs_solution)
+                log.info("Naive: %s", solution)
 #                tree.dump_solution(solution)
+#                tree.dump_solution(bfs_solution)
 #                tree.dump_root()
 #                log.info("Tree: %s", tree)
             return tree, solution
