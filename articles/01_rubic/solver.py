@@ -91,7 +91,7 @@ def save_output(data, output_file):
     with open(output_file, "wt", encoding='utf-8') as fd:
         writer = csv.writer(fd)
         writer.writerow(['start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps',
-                         'sol_len_naive', 'sol_len_bfs'])
+                         'sol_len_naive', 'sol_len_bfs', 'tree_depth_max', 'tree_depth_mean'])
         for dp in data:
             writer.writerow([
                 dp.start_dt.isoformat(),
@@ -102,7 +102,9 @@ def save_output(data, output_file):
                 int(dp.is_solved),
                 dp.solve_steps,
                 dp.sol_len_naive,
-                dp.sol_len_bfs
+                dp.sol_len_bfs,
+                dp.depth_max,
+                dp.depth_mean
             ])
 
 
