@@ -90,7 +90,8 @@ def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_de
 def save_output(data, output_file):
     with open(output_file, "wt", encoding='utf-8') as fd:
         writer = csv.writer(fd)
-        writer.writerow(['start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps', 'solution'])
+        writer.writerow(['start_dt', 'stop_dt', 'duration', 'depth', 'scramble', 'is_solved', 'solve_steps',
+                         'sol_len_naive', 'sol_len_bfs'])
         for dp in data:
             writer.writerow([
                 dp.start_dt.isoformat(),
@@ -100,7 +101,8 @@ def save_output(data, output_file):
                 dp.scramble,
                 int(dp.is_solved),
                 dp.solve_steps,
-                dp.solution
+                dp.sol_len_naive,
+                dp.sol_len_bfs
             ])
 
 
