@@ -43,7 +43,7 @@ def generate_task(env, depth):
     return res
 
 
-def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_depth, device):
+def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_depth, batch_size, device):
     """
     Try to solve lots of cubes to get data
     :param cube_env: CubeEnv
@@ -63,7 +63,7 @@ def gather_data(cube_env, net, max_seconds, max_steps, max_depth, samples_per_de
                 start_dt = datetime.datetime.utcnow()
                 task = generate_task(cube_env, depth)
                 tree, solution = solve_task(cube_env, task, net, cube_idx=task_idx, max_seconds=max_seconds,
-                                            max_steps=max_steps, device=device, quiet=True)
+                                            max_steps=max_steps, device=device, quiet=True, batch_size=batch_size)
                 is_solved = solution is not None
                 stop_dt = datetime.datetime.utcnow()
                 duration = (stop_dt - start_dt).total_seconds()
@@ -109,7 +109,7 @@ def save_output(data, output_file):
 
 
 def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, max_steps=None,
-               device=torch.device("cpu"), quiet=False):
+               device=torch.device("cpu"), quiet=False, batch_size=1):
     if not quiet:
         log_prefix = "" if cube_idx is None else "cube %d: " % cube_idx
         log.info("%sGot task %s, solving...", log_prefix, task)
@@ -119,11 +119,14 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
     ts = time.time()
 
     while True:
-        solution = tree.search()
+        if batch_size > 1:
+            solution = tree.search_batch(batch_size)
+        else:
+            solution = tree.search()
         if solution:
             if not quiet:
                 log.info("On step %d we found goal state, unroll. Speed %.2f searches/s",
-                         step_no, step_no / (time.time() - ts))
+                         step_no, (step_no*batch_size) / (time.time() - ts))
                 log.info("Tree depths: %s", tree.get_depth_stats())
                 bfs_solution = tree.find_solution()
                 log.info("Solutions: naive %d, bfs %d", len(solution), len(bfs_solution))
@@ -140,18 +143,14 @@ def solve_task(env, task, net, cube_idx=None, max_seconds=DEFAULT_MAX_SECONDS, m
                 if not quiet:
                     log.info("Maximum amount of steps has reached, cube wasn't solved. "
                              "Did %d searches, speed %.2f searches/s",
-                             step_no, step_no / (time.time() - ts))
+                             step_no, (step_no*batch_size) / (time.time() - ts))
                     log.info("Tree depths: %s", tree.get_depth_stats())
-#                    tree.dump_root()
-#                    log.info("Tree: %s", tree)
                 return tree, None
         elif time.time() - ts > max_seconds:
             if not quiet:
                 log.info("Time is up, cube wasn't solved. Did %d searches, speed %.2f searches/s..",
-                         step_no, step_no / (time.time() - ts))
+                         step_no, (step_no*batch_size) / (time.time() - ts))
                 log.info("Tree depths: %s", tree.get_depth_stats())
-#                tree.dump_root()
-#                log.info("Tree: %s", tree)
             return tree, None
 
 
@@ -190,6 +189,7 @@ if __name__ == "__main__":
                         help="Maximum depth for plots and data, default=%s" % PLOT_MAX_DEPTHS)
     parser.add_argument("--samples", type=int, default=PLOT_TASKS,
                         help="Count of tests of each depth, default=%s" % PLOT_TASKS)
+    parser.add_argument("-b", "--batch", type=int, default=1, help="Batch size to use during the search, default=1")
     parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
     parser.add_argument("--seed", type=int, default=42, help="Seed to use, if zero, no seed used. default=42")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -216,10 +216,12 @@ if __name__ == "__main__":
 
     if args.random is not None:
         task = generate_task(cube_env, args.random)
-        solve_task(cube_env, task, net, max_seconds=args.max_time, max_steps=args.max_steps, device=device)
+        solve_task(cube_env, task, net, max_seconds=args.max_time, max_steps=args.max_steps, device=device,
+                   batch_size=args.batch)
     elif args.perm is not None:
         task = list(map(int, args.perm.split(',')))
-        solve_task(cube_env, task, net, max_seconds=args.max_time, max_steps=args.max_steps, device=device)
+        solve_task(cube_env, task, net, max_seconds=args.max_time, max_steps=args.max_steps, device=device,
+                   batch_size=args.batch)
     elif args.input is not None:
         log.info("Processing scrambles from %s", args.input)
         count = 0
@@ -228,16 +230,18 @@ if __name__ == "__main__":
             for idx, l in enumerate(fd):
                 task = list(map(int, l.strip().split(',')))
                 _, solution  = solve_task(cube_env, task, net, cube_idx=idx, max_seconds=args.max_time,
-                                          max_steps=args.max_steps, device=device)
+                                          max_steps=args.max_steps, device=device, batch_size=args.batch)
                 if solution is not None:
                     solved += 1
                 count += 1
         log.info("Solved %d out of %d cubes, which is %.2f%% success ratio", solved, count, 100*solved / count)
     elif args.plot is not None:
         log.info("Produce plots with prefix %s", args.plot)
-        data = gather_data(cube_env, net, args.max_time, args.max_steps, args.max_depth, args.samples, device)
+        data = gather_data(cube_env, net, args.max_time, args.max_steps, args.max_depth, args.samples,
+                           args.batch, device)
         produce_plots(data, args.plot, args.max_time)
     elif args.output is not None:
-        data = gather_data(cube_env, net, args.max_time, args.max_steps, args.max_depth, args.samples, device)
+        data = gather_data(cube_env, net, args.max_time, args.max_steps, args.max_depth, args.samples,
+                           args.batch, device)
         save_output(data, args.output)
         pass

@@ -13,7 +13,7 @@ class MCTS:
     """
     Monte Carlo Tree Search state and method
     """
-    def __init__(self, cube_env, state, net, exploration_c=10, virt_loss_nu=10.0, device="cpu"):
+    def __init__(self, cube_env, state, net, exploration_c=100, virt_loss_nu=100.0, device="cpu"):
         assert isinstance(cube_env, cubes.CubeEnv)
         assert cube_env.is_state(state)
 
@@ -139,10 +139,30 @@ class MCTS:
             w[path_a] = max(w[path_a], value)
             self.virt_loss[path_s][path_a] -= self.virt_loss_nu
 
+    def search_batch(self, batch_size):
+        """
+        Perform a batches search to increase efficiency.
+        :param batch_size: size of search batch
+        :return: path to solution or None if not found
+        """
+        batch_size = min(batch_size, len(self) + 1)
+        batch_states, batch_actions, batch_paths = [], [], []
+        for _ in range(batch_size):
+            s, path_acts, path_s = self._search_leaf()
+            batch_states.append(s)
+            batch_actions.append(path_acts)
+            batch_paths.append(path_s)
 
-    def search_batch(self, net, batch_count=10):
-        pass
+        for s, path_actions in zip(batch_states, batch_actions):
+            child, goals = self.cube_env.explore_state(s)
+            self.edges[s] = child
+            if np.any(goals):
+                return path_actions + [np.argmax(goals)]
 
+        values = self._expand_leaves(batch_states)
+        for value, path_states, path_actions in zip(values, batch_paths, batch_actions):
+            self._backup_leaf(path_states, path_actions, value)
+        return None
 
     def evaluate_states(self, states):
         """
