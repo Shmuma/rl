@@ -96,5 +96,31 @@ Maybe, we need to tune virtual loss as well. Do an experiment on it.
 Main question: does lower loss mean better solve ratio?
 
 Setup:
-cube 2x2, c=100, steps=100k, batch=1
-* model: 
+cube 2x2, c=100, steps=100k, batch=1, models:
+* t2-zero-goal-best_1.4547e-02.dat
+* best_3.0742e-02.dat
+* best_6.0737e-02.dat
+* best_1.0366e-01.dat
+
+Results:
+* t4-c2x2-mcts-c=100-steps=100k.csv
+* t5-c2x2-3.0742e-02.csv
+* t5-c2x2-6.0737e-02.csv
+* t5-c2x2-1.0366e-01.csv
+
+Started, waiting for results
+
+## Experiment with different virtual loss
+
+Setup:
+cube 2x2, c=100, steps=100k, batch=10
+* nu=100 (default)
+* nu=10
+* nu=1
+* nu=1000
+
+Results:
+* t4-c2x2-mcts-c=100-steps=100k-b10.csv
+* t6-c2x2-nu=10.csv
+* t6-c2x2-nu=1.csv
+* t6-c2x2-nu=1000.csv
