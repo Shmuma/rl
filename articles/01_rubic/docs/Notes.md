@@ -108,7 +108,9 @@ Results:
 * t5-c2x2-6.0737e-02.csv
 * t5-c2x2-1.0366e-01.csv
 
-Started, waiting for results
+~~Started, waiting for results~~
+**2018-11-19**: run done, notebook is in nbs/06_compare_models
+Conclusion: with lower loss, solve ratio increases significantly.
 
 ## Experiment with different virtual loss
 
