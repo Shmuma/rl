@@ -126,3 +126,7 @@ Results:
 * t6-c2x2-nu=10.csv
 * t6-c2x2-nu=1.csv
 * t6-c2x2-nu=1000.csv
+
+## Final check -- compare best paper solution with best zero-goal
+
+
