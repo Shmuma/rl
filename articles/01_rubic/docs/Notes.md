@@ -129,4 +129,6 @@ Results:
 
 ## Final check -- compare best paper solution with best zero-goal
 
-
+Results:
+* t4-c2x2-mcts-c=100-steps=100k.csv
+* t7-best-paper-1.8184e-1.csv
