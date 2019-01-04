@@ -77,6 +77,14 @@ class Config:
     def train_max_batches(self):
         return self.sect_train.getint('max_batches')
 
+    @property
+    def scramble_buffer_batches(self):
+        return self.sect_train.getint("scramble_buffer_batches", 10)
+
+    @property
+    def push_scramble_buffer_iters(self):
+        return self.sect_train.getint('push_scramble_buffer_iters', 100)
+
     # higher-level functions
     def train_name(self, suffix=None):
         res = "%s-%s-d%d" % (self.cube_type, self.run_name, self.train_scramble_depth)
