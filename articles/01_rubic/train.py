@@ -71,11 +71,13 @@ if __name__ == "__main__":
         value_out_t = value_out_t.squeeze(-1)
         value_loss_t = (value_out_t - y_value_t)**2
         value_loss_raw_t = value_loss_t.mean()
-        value_loss_t *= weights_t
+        if config.weight_samples:
+            value_loss_t *= weights_t
         value_loss_t = value_loss_t.mean()
         policy_loss_t = F.cross_entropy(policy_out_t, y_policy_t, reduction='none')
         policy_loss_raw_t = policy_loss_t.mean()
-        policy_loss_t *= weights_t
+        if config.weight_samples:
+            policy_loss_t *= weights_t
         policy_loss_t = policy_loss_t.mean()
         loss_raw_t = policy_loss_raw_t + value_loss_raw_t
         loss_t = value_loss_t + policy_loss_t

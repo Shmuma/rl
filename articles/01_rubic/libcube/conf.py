@@ -85,6 +85,10 @@ class Config:
     def push_scramble_buffer_iters(self):
         return self.sect_train.getint('push_scramble_buffer_iters', 100)
 
+    @property
+    def weight_samples(self):
+        return self.sect_train.getboolean('weights_samples', True)
+
     # higher-level functions
     def train_name(self, suffix=None):
         res = "%s-%s-d%d" % (self.cube_type, self.run_name, self.train_scramble_depth)
