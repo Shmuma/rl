@@ -87,7 +87,7 @@ class Config:
 
     @property
     def weight_samples(self):
-        return self.sect_train.getboolean('weights_samples', True)
+        return self.sect_train.getboolean('weight_samples', True)
 
     # higher-level functions
     def train_name(self, suffix=None):
