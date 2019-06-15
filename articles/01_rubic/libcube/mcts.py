@@ -32,6 +32,8 @@ class MCTS:
         self.val_maxes = collections.defaultdict(lambda: np.zeros(shape, dtype=np.float32))
         # correspond to P_s(a)
         self.prob_actions = {}
+        # keep values for any state
+        self.val_states = {}
         # correspond to L_s(a)
         self.virt_loss = collections.defaultdict(lambda: np.zeros(shape, dtype=np.float32))
         # TODO: check speed and memory of edge-less version
@@ -106,7 +108,7 @@ class MCTS:
                 act = random.randrange(len(self.cube_env.action_enum))
             else:
                 u = self.exploration_c * N_sqrt / (act_counts + 1)
-                u *= self.prob_actions[s]
+                u *= (self.prob_actions[s] - cube_entropy(self.cube_env, s) * self.val_states[s])
                 q = self.val_maxes[s] - self.virt_loss[s]
                 act = np.argmax(u + q)
             self.virt_loss[s][act] += self.virt_loss_nu
@@ -124,6 +126,8 @@ class MCTS:
         policies, values = self.evaluate_states(leaf_states)
         for s, p in zip(leaf_states, policies):
             self.prob_actions[s] = p
+        for s, v in zip(leaf_states, values):
+            self.val_states[s] = v
         return values
 
     def _backup_leaf(self, states, actions, value):
@@ -240,3 +244,21 @@ class MCTS:
                 queue.append((c_state, p))
 
 
+def cube_entropy(cube_env, state):
+    """
+    Calculate entropy of the cube state - ratio of cells which are out of order
+    :param cube_env:
+    :param state:
+    :return:
+    """
+    assert isinstance(cube_env, cubes.CubeEnv)
+    init_render = cube_env.render(cube_env.initial_state)
+    render = cube_env.render(state)
+    total = 0
+    match = 0
+    for s1, s2 in zip(init_render, render):
+        for v1, v2 in zip(s1, s2):
+            if v1 == v2:
+                match += 1
+            total += 1
+    return (total-match)/total
