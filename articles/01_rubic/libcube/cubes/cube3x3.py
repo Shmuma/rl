@@ -127,8 +127,8 @@ def transform(state, action):
     corner_ort = _common._rotate(corner_ort, c_rot)
     side_pos = _common._permute(state.side_pos, s_map, is_inv)
     side_ort = state.side_ort
+    side_ort = _common._permute(side_ort, s_map, is_inv)
     if s_flp:
-        side_ort = _common._permute(side_ort, s_map, is_inv)
         side_ort = _flip(side_ort, s_flp)
     return State(corner_pos=tuple(corner_pos), corner_ort=tuple(corner_ort),
                  side_pos=tuple(side_pos), side_ort=tuple(side_ort))
